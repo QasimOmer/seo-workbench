@@ -1744,7 +1744,7 @@ async function initFirebase() {
               photoURL: fbUser.photoURL,
             },
           });
-          setSessionUser(sync.user);
+          setSessionUser(sync.user, sync.token);
         } catch (e) {
           console.warn('[Firebase Sync Error]', e);
         }
@@ -1759,9 +1759,12 @@ async function initFirebase() {
   }
 }
 
-function setSessionUser(u) {
+function setSessionUser(u, token) {
   AUTH.user = u;
   window.currentUser = u;
+  if (token) {
+    try { localStorage.setItem('sw_session_token', token); } catch {}
+  }
   renderWhoami({ user: u });
   if (u) {
     const gate = $('#authGate');
@@ -1776,7 +1779,10 @@ function setSessionUser(u) {
 
 async function authBoot() {
   let st;
-  try { st = await api('/api/auth/status'); } catch { return; }
+  try {
+    const savedToken = localStorage.getItem('sw_session_token');
+    st = await api('/api/auth/status', savedToken ? { headers: { 'x-session-token': savedToken } } : {});
+  } catch { return; }
   AUTH.enabled = st.enabled; AUTH.user = st.user; AUTH.transport = st.transport;
   window.currentUser = st.user;
   window.can = (perm) => {
@@ -1899,6 +1905,7 @@ function renderWhoami(st) {
       const fb = await initFirebase();
       if (fb?.auth && fb.signOut) await fb.signOut(fb.auth);
     } catch {}
+    try { localStorage.removeItem('sw_session_token'); } catch {}
     await api('/api/auth/logout', { body: {} });
     location.reload();
   });
@@ -2697,7 +2704,7 @@ function renderAuthModalBody() {
       const sync = await api('/api/auth/sync-firebase', {
         body: { uid: user.uid, email: user.email, displayName: user.displayName, photoURL: user.photoURL },
       });
-      setSessionUser(sync.user);
+      setSessionUser(sync.user, sync.token);
       $('#authModal')?.close();
       toast(`Signed in successfully as ${sync.user.name || sync.user.email}!`, 'ok');
       hideLanding();
@@ -2736,7 +2743,7 @@ function renderAuthModalBody() {
           const sync = await api('/api/auth/quick-owner', {
             body: { email: 'mqasimomer@gmail.com', name: 'Muhammad Qasim Omer' },
           });
-          setSessionUser(sync.user);
+          setSessionUser(sync.user, sync.token);
           $('#authModal')?.close();
           toast(`Welcome back, ${sync.user.name}! Signed in as Workspace Owner.`, 'ok');
           hideLanding();
@@ -2790,9 +2797,10 @@ function renderAuthModalBody() {
           body: { username: userVal, password: passVal, name: nameVal || userVal, email: isEmail ? userVal : null },
         });
         authedUser = res.user;
+        setSessionUser(authedUser, res.token);
+      } else {
+        setSessionUser(authedUser);
       }
-
-      setSessionUser(authedUser);
       $('#authModal')?.close();
       toast(isSignUp ? `Account created! Welcome, ${authedUser.name || authedUser.username}.` : `Signed in as ${authedUser.name || authedUser.username}.`, 'ok');
       hideLanding();
@@ -2867,7 +2875,7 @@ function renderAuthForm(mode, st) {
       const sync = await api('/api/auth/quick-owner', {
         body: { email: 'mqasimomer@gmail.com', name: 'Muhammad Qasim Omer' },
       });
-      setSessionUser(sync.user);
+      setSessionUser(sync.user, sync.token);
       $('#authGate').hidden = true;
       toast(`Welcome back, ${sync.user.name}! Signed in as Workspace Owner.`, 'ok');
       hideLanding();
@@ -2890,7 +2898,7 @@ function renderAuthForm(mode, st) {
       const res = await api(endpoint, {
         body: { username, password, name: $('#auName')?.value.trim() || username, email: isEmail ? username : null },
       });
-      setSessionUser(res.user);
+      setSessionUser(res.user, res.token);
       $('#authGate').hidden = true;
       toast('Signed in successfully!', 'ok');
       hideLanding();
@@ -2906,7 +2914,15 @@ function renderAuthForm(mode, st) {
 
 /* A session expiring mid-use must show sign-in modal rather than an unrecoverable failure. */
 const _apiAuth = api;
-api = async function (path, opts) {
+api = async function (path, opts = {}) {
+  const token = localStorage.getItem('sw_session_token');
+  if (token) {
+    opts.headers = {
+      ...(opts.headers || {}),
+      'x-session-token': token,
+      'Authorization': `Bearer ${token}`,
+    };
+  }
   try { return await _apiAuth(path, opts); }
   catch (e) {
     if (/Not signed in/i.test(e.message)) {

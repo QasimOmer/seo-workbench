@@ -93,6 +93,16 @@ const readCookie = (req, name) => {
   return null;
 };
 
+const getAuthToken = (req) => {
+  const c = readCookie(req, COOKIE);
+  if (c) return c;
+  const hdr = req.headers['x-session-token'];
+  if (hdr) return String(hdr).trim();
+  const authHdr = req.headers.authorization;
+  if (authHdr && /^Bearer\s+/i.test(authHdr)) return authHdr.replace(/^Bearer\s+/i, '').trim();
+  return null;
+};
+
 const cookieAttrs = (req, maxAgeSec) => {
   const secure = req.protocol === 'https' || req.headers['x-forwarded-proto'] === 'https' || Boolean(process.env.VERCEL);
   return [
@@ -132,7 +142,7 @@ app.use('/api', wrap(async (req, res, next) => {
   if (OPEN_PATHS.has(req.path)) return next();
   if (!effectiveAuth) return next();
 
-  const user = await auth.resolve(readCookie(req, COOKIE));
+  const user = await auth.resolve(getAuthToken(req));
   if (!user) {
     return res.status(401).json({
       ok: false,
@@ -163,7 +173,7 @@ app.use('/api', wrap(async (req, res, next) => {
 app.get('/api/auth/status', wrap(async (req, res) => {
   const st = await auth.status();
   const effectiveAuth = IS_PROD || st.enabled;
-  const user = effectiveAuth ? await auth.resolve(readCookie(req, COOKIE)) : null;
+  const user = effectiveAuth ? await auth.resolve(getAuthToken(req)) : null;
   ok(res, {
     ...st,
     enabled: effectiveAuth,
@@ -190,7 +200,7 @@ app.post('/api/auth/quick-owner', wrap(async (req, res) => {
     userAgent: req.headers['user-agent'] || '',
   });
   res.setHeader('Set-Cookie', `${COOKIE}=${encodeURIComponent(s.cookie)}; ${cookieAttrs(req, 14 * 86400)}`);
-  ok(res, { user: s.user, expiresAt: s.expiresAt });
+  ok(res, { user: s.user, expiresAt: s.expiresAt, token: s.cookie });
 }));
 
 /** First account setup. Refuses once one exists. */
@@ -202,7 +212,7 @@ app.post('/api/auth/setup', wrap(async (req, res) => {
   await auth.setEnabled(true);
   const s = await auth.login({ username, password, ip: req.ip, userAgent: req.headers['user-agent'] || '' });
   res.setHeader('Set-Cookie', `${COOKIE}=${encodeURIComponent(s.cookie)}; ${cookieAttrs(req, 14 * 86400)}`);
-  ok(res, { user, enabled: true });
+  ok(res, { user, enabled: true, token: s.cookie });
 }));
 
 app.post('/api/auth/login', wrap(async (req, res) => {
@@ -211,14 +221,14 @@ app.post('/api/auth/login', wrap(async (req, res) => {
   try {
     const s = await auth.login({ username, password, ip: req.ip, userAgent: req.headers['user-agent'] || '' });
     res.setHeader('Set-Cookie', `${COOKIE}=${encodeURIComponent(s.cookie)}; ${cookieAttrs(req, 14 * 86400)}`);
-    ok(res, { user: s.user, expiresAt: s.expiresAt });
+    ok(res, { user: s.user, expiresAt: s.expiresAt, token: s.cookie });
   } catch (e) {
     res.status(401).json({ ok: false, error: e.message });
   }
 }));
 
 app.post('/api/auth/logout', wrap(async (req, res) => {
-  await auth.logout(readCookie(req, COOKIE));
+  await auth.logout(getAuthToken(req));
   res.setHeader('Set-Cookie', `${COOKIE}=; ${cookieAttrs(req, 0)}`);
   ok(res, { signedOut: true });
 }));
@@ -251,7 +261,7 @@ app.post('/api/auth/register', wrap(async (req, res) => {
   }
   const s = await auth.login({ username, password, ip: req.ip, userAgent: req.headers['user-agent'] || '' });
   res.setHeader('Set-Cookie', `${COOKIE}=${encodeURIComponent(s.cookie)}; ${cookieAttrs(req, 14 * 86400)}`);
-  ok(res, { user: s.user, expiresAt: s.expiresAt });
+  ok(res, { user: s.user, expiresAt: s.expiresAt, token: s.cookie });
 }));
 
 app.post('/api/auth/sync-firebase', wrap(async (req, res) => {
@@ -266,7 +276,7 @@ app.post('/api/auth/sync-firebase', wrap(async (req, res) => {
     userAgent: req.headers['user-agent'] || '',
   });
   res.setHeader('Set-Cookie', `${COOKIE}=${encodeURIComponent(s.cookie)}; ${cookieAttrs(req, 14 * 86400)}`);
-  ok(res, { user: s.user, expiresAt: s.expiresAt });
+  ok(res, { user: s.user, expiresAt: s.expiresAt, token: s.cookie });
 }));
 
 /* ── Team & RBAC Management Endpoints ───────────────────────────────────── */
@@ -327,11 +337,14 @@ const state = { crawl: null, audit: null, progress: null, propertyId: null, clus
 /* ─────────────────────────────────── crawl ────────────────────────────────── */
 
 app.post('/api/crawl', requirePermission('audit:run'), wrap(async (req, res) => {
-  const { url, maxPages = 500, ua = 'googlebot', includeSubdomains = false, respectRobots = true, concurrency = 5, moneyUrls = [] } = req.body;
+  const { url, maxPages = 500, ua = 'googlebot', includeSubdomains = false, respectRobots = true, concurrency = 5, moneyUrls = [], timeLimitMs } = req.body;
   if (!url) return fail(res, 'A start URL is required.');
   state.progress = { done: 0, max: maxPages, url: '', phase: 'crawling' };
 
-  const result = await crawl(url, { maxPages, ua, includeSubdomains, respectRobots, concurrency },
+  // On Vercel serverless functions, enforce an 8500ms safety budget to prevent 504 Gateway Timeouts
+  const budget = timeLimitMs ? Math.min(Number(timeLimitMs), 55000) : (process.env.VERCEL ? 8500 : 55000);
+
+  const result = await crawl(url, { maxPages, ua, includeSubdomains, respectRobots, concurrency, timeLimitMs: budget },
     (p) => { state.progress = { ...p, phase: 'crawling' }; });
 
   state.crawl = result;
@@ -361,6 +374,8 @@ app.post('/api/crawl', requirePermission('audit:run'), wrap(async (req, res) => 
     robots: { status: result.robotsStatus, sitemaps: result.robots.sitemaps, raw: result.robotsRaw.slice(0, 4000) },
     sitemapSources: result.sitemapSources,
     truncated: result.truncated,
+    timeExceeded: result.timeExceeded || false,
+    timeElapsedMs: result.timeElapsedMs || 0,
     remainingQueue: result.remainingQueue,
     pages: result.pages.map(slimPage),
     external: result.external.slice(0, 100),
