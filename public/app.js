@@ -166,6 +166,10 @@ function renderPropMenu() {
   }));
   $$('#propMenu [data-del]').forEach((x) => x.addEventListener('click', async (e) => {
     e.stopPropagation();
+    if (window.can && !window.can('settings:write')) {
+      alert('Access Denied: Your account role does not have permission to delete properties. Admin or Owner role required.');
+      return;
+    }
     const p = state.properties.find((q) => q.id === x.dataset.del);
     if (!confirm(`Remove ${p?.label} from the portal? The saved crawl goes with it.`)) return;
     await fetch(`/api/properties/${x.dataset.del}`, { method: 'DELETE' });
@@ -203,6 +207,10 @@ const ago = (iso) => {
 };
 
 $('#runCrawlTop').addEventListener('click', () => {
+  if (window.can && !window.can('audit:run')) {
+    alert('Viewer accounts have read-only access. An Editor, Admin, or Owner role is required to start an audit.');
+    return;
+  }
   if ($('#crawlUrl').value.trim()) return void $('#runCrawl').click();
   showPanel('crawl'); $('#crawlUrl').focus();
 });
@@ -212,6 +220,9 @@ $$('button.go').forEach((b) => { b.dataset.label = b.textContent; });
 /* ═══════════════════════════════ AUDIT ═══════════════════════════════ */
 
 $('#runCrawl').addEventListener('click', async () => {
+  if (window.can && !window.can('audit:run')) {
+    return msg('#crawlMsg', 'Access Denied: Your account has Viewer role (read-only). An Editor, Admin, or Owner role is required to run audits.', 'err');
+  }
   const url = $('#crawlUrl').value.trim();
   if (!url) return msg('#crawlMsg', 'Enter a start URL.', 'err');
   const btn = $('#runCrawl');
@@ -1092,8 +1103,189 @@ function wireCopy() {
     });
   });
 }
-const copy = (t) => navigator.clipboard?.writeText(t);
+async function renderWelcomeScreen(out) {
+  out.innerHTML = `
+    <div class="hero-container">
+      <div class="hero-badge">
+        <span class="hero-pulse"></span>
+        <span class="hero-badge-text">SEO WORKBENCH 2.0 &bull; 9-STAGE AUDIT &amp; OPTIMIZATION</span>
+      </div>
+      <h1 class="hero-title">High-Precision Technical SEO &amp; Growth Engine</h1>
+      <p class="hero-desc">Full-site crawling, sequenced root-cause diagnostics, real-user Core Web Vitals, AI model share of voice, and multi-platform social asset generation.</p>
 
+      <div class="hero-crawl-box">
+        <div class="crawl-input-group">
+          <div class="crawl-proto">https://</div>
+          <input id="wUrl" type="text" placeholder="example.com or full URL" class="crawl-url-input" autocomplete="url" autofocus>
+          <button class="go hero-launch-btn" id="wGo">
+            <svg class="i" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            <span>Start Audit</span>
+          </button>
+        </div>
+
+        <div class="hero-quick-chips">
+          <span class="chips-label">Quick test:</span>
+          <button class="sample-chip" data-domain="westguardssecurity.ca">westguardssecurity.ca</button>
+          <button class="sample-chip" data-domain="stripe.com">stripe.com</button>
+          <button class="sample-chip" data-domain="shopify.com">shopify.com</button>
+          <button class="sample-chip" data-domain="vercel.com">vercel.com</button>
+        </div>
+
+        <details class="crawl-options-details">
+          <summary><span>Advanced crawl parameters</span> <span class="dim">(Cap, User-Agent, JavaScript rendering)</span></summary>
+          <div class="crawl-opt-grid">
+            <div class="field">
+              <label for="wMaxPages">Max pages</label>
+              <input id="wMaxPages" type="number" value="500" min="1" max="25000">
+            </div>
+            <div class="field">
+              <label for="wUa">User Agent</label>
+              <select id="wUa">
+                <option value="googlebot">Googlebot Smartphone</option>
+                <option value="desktop">Desktop Chrome</option>
+                <option value="workbench">SEO Workbench</option>
+              </select>
+            </div>
+            <div class="field check-field">
+              <label class="check"><input type="checkbox" id="wRespectRobots" checked> Respect robots.txt</label>
+              <label class="check"><input type="checkbox" id="wRenderJs"> Render JavaScript</label>
+            </div>
+          </div>
+        </details>
+      </div>
+
+      <div class="recent-props-section" id="recentPropsSection" style="display:none">
+        <div class="section-hd">
+          <h3>Saved &amp; Recent Properties</h3>
+          <span class="sub-pill" id="propCountBadge">0 sites</span>
+        </div>
+        <div class="recent-props-grid" id="recentPropsGrid"></div>
+      </div>
+
+      <div class="features-section">
+        <div class="section-hd">
+          <h3>The Audit &amp; Growth Toolkit</h3>
+          <p class="section-sub">Zero-filler diagnostic tools that pinpoint the exact stage where organic visibility breaks.</p>
+        </div>
+        <div class="features-grid">
+          <div class="feat-card" data-jump="crawl">
+            <div class="feat-icon" style="--c:var(--note)">
+              <svg viewBox="0 0 24 24" class="i lg"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+            </div>
+            <h4>9-Stage Canon Audit</h4>
+            <p>Sequenced root-cause diagnosis. Identifies DNS, indexing, canonical, and intent blockers in exact priority order.</p>
+            <span class="feat-action">Run Crawl &rarr;</span>
+          </div>
+
+          <div class="feat-card" data-jump="speed">
+            <div class="feat-icon" style="--c:var(--pass)">
+              <svg viewBox="0 0 24 24" class="i lg"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            </div>
+            <h4>Core Web Vitals &amp; Speed</h4>
+            <p>Combines 6 months of real-user Chrome UX (CruX) field data with lab-grade PageSpeed diagnostics.</p>
+            <span class="feat-action">Inspect Speed &rarr;</span>
+          </div>
+
+          <div class="feat-card" data-jump="aivis">
+            <div class="feat-icon" style="--c:#A78BFA">
+              <svg viewBox="0 0 24 24" class="i lg"><path d="M12 2a8 8 0 0 0-8 8c0 5 8 12 8 12s8-7 8-12a8 8 0 0 0-8-8z"/><circle cx="12" cy="10" r="3"/></svg>
+            </div>
+            <h4>AI &amp; LLM Visibility</h4>
+            <p>Measures Share of Voice and citation frequency across ChatGPT, Perplexity, Claude, and Gemini.</p>
+            <span class="feat-action">View AI Presence &rarr;</span>
+          </div>
+
+          <div class="feat-card" data-jump="social">
+            <div class="feat-icon" style="--c:#F472B6">
+              <svg viewBox="0 0 24 24" class="i lg"><circle cx="6" cy="10" r="2.5"/><circle cx="14" cy="5" r="2.5"/><circle cx="14" cy="15" r="2.5"/><path d="M8.2 8.8l3.6-2.2M8.2 11.2l3.6 2.2"/></svg>
+            </div>
+            <h4>Social Studio &amp; Artwork</h4>
+            <p>Generate platform-sized copy with SVG typographical artwork, procedural textures, or AI imagery.</p>
+            <span class="feat-action">Create Posts &rarr;</span>
+          </div>
+
+          <div class="feat-card" data-jump="console">
+            <div class="feat-icon" style="--c:var(--warn)">
+              <svg viewBox="0 0 24 24" class="i lg"><path d="M3 3v18h18"/><path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/></svg>
+            </div>
+            <h4>Search Console &amp; Queries</h4>
+            <p>Direct sync with Google Search Console for impressions, clicks, average position, and keyword cannibalization.</p>
+            <span class="feat-action">Connect Console &rarr;</span>
+          </div>
+
+          <div class="feat-card" data-jump="demand">
+            <div class="feat-icon" style="--c:var(--note)">
+              <svg viewBox="0 0 24 24" class="i lg"><circle cx="9" cy="9" r="5"/><path d="M13 13l4 4"/></svg>
+            </div>
+            <h4>Keyword Intent &amp; Clusters</h4>
+            <p>Group thousands of search queries by commercial, informational, or transactional intent into targeted pages.</p>
+            <span class="feat-action">Explore Keywords &rarr;</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const launchAudit = () => {
+    let raw = $('#wUrl').value.trim();
+    if (!raw) {
+      $('#wUrl').focus();
+      return;
+    }
+    if (!/^https?:\/\//i.test(raw)) raw = 'https://' + raw;
+    $('#crawlUrl').value = raw;
+    if ($('#wMaxPages')) $('#maxPages').value = $('#wMaxPages').value;
+    if ($('#wUa')) $('#ua').value = $('#wUa').value;
+    if ($('#wRespectRobots')) $('#respectRobots').checked = $('#wRespectRobots').checked;
+    if ($('#wRenderJs')) $('#renderJs').checked = $('#wRenderJs').checked;
+    showPanel('crawl');
+    $('#runCrawl').click();
+  };
+
+  $('#wGo')?.addEventListener('click', launchAudit);
+  $('#wUrl')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') launchAudit(); });
+
+  $$('.sample-chip').forEach((btn) => btn.addEventListener('click', () => {
+    $('#wUrl').value = btn.dataset.domain;
+    launchAudit();
+  }));
+
+  $$('.feat-card[data-jump]').forEach((card) => card.addEventListener('click', () => {
+    showPanel(card.dataset.jump);
+  }));
+
+  if (state.properties && state.properties.length > 0) {
+    const sec = $('#recentPropsSection');
+    const grid = $('#recentPropsGrid');
+    const badge = $('#propCountBadge');
+    if (sec && grid) {
+      sec.style.display = 'block';
+      badge.textContent = `${state.properties.length} site${state.properties.length === 1 ? '' : 's'}`;
+      grid.innerHTML = state.properties.slice(0, 6).map((p) => {
+        const crit = p.counts?.Critical || 0;
+        const high = p.counts?.High || 0;
+        const issues = crit + high;
+        return `
+          <div class="recent-prop-card" data-pid="${esc(p.id)}">
+            <div class="rpc-top">
+              <span class="rpc-name">${esc(p.label)}</span>
+              <span class="rpc-badge ${issues > 0 ? 'crit' : 'ok'}">${issues > 0 ? `${issues} issues` : 'healthy'}</span>
+            </div>
+            <div class="rpc-meta">
+              <span>${num(p.pages || 0)} pages crawled</span>
+              <span>&bull;</span>
+              <span>${p.lastCrawledAt ? ago(p.lastCrawledAt) : 'not crawled yet'}</span>
+            </div>
+            <button class="rpc-btn">Open Workspace &rarr;</button>
+          </div>`;
+      }).join('');
+
+      $$('.recent-prop-card').forEach((card) => card.addEventListener('click', () => {
+        activateProperty(card.dataset.pid);
+      }));
+    }
+  }
+}
 
 /* ══════════════════════════════ OVERVIEW ══════════════════════════════ */
 /* The canon's first question is "which stage is this breaking at", so that is
@@ -1103,21 +1295,7 @@ function renderOverview() {
   const out = $('#overviewOut');
 
   if (!state.findings.length && !state.pages.length) {
-    out.innerHTML = `
-      <div class="welcome">
-        <h2>Start by crawling a site.</h2>
-        <p>The crawl is what everything else reads from — findings, page reviews, link plans, exports. Sites you crawl stay in the switcher above, so you can move between clients without starting over.</p>
-        <div class="form">
-          <div class="field grow"><label for="wUrl">Start URL</label><input id="wUrl" type="url" placeholder="https://example.com/"></div>
-          <div class="field"><label>&nbsp;</label><button class="go" id="wGo">Run crawl</button></div>
-        </div>
-        <p class="note">Nothing leaves your machine except requests to the site you're crawling and, if you connect them, Google's own APIs.</p>
-      </div>`;
-    $('#wGo').addEventListener('click', () => {
-      $('#crawlUrl').value = $('#wUrl').value.trim();
-      showPanel('crawl');
-      if ($('#crawlUrl').value) $('#runCrawl').click();
-    });
+    renderWelcomeScreen(out);
     return;
   }
 

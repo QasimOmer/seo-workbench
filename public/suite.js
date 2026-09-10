@@ -487,6 +487,9 @@ async function renderSocial() {
   out.innerHTML = '<div class="progress">Loading…</div>';
   const meta = await api('/api/social/meta');
   suite.meta = meta;
+  if (!suite.styles) {
+    try { const { styles } = await api('/api/social/styles'); suite.styles = styles; } catch {}
+  }
 
   out.innerHTML = `
     <p class="note">Artwork is generated on your machine by default — instant, offline, and repeatable. "Vary" reshuffles it. AI photography is there if you want it, and falls back to local artwork when the free providers are busy.</p>
@@ -1695,36 +1698,559 @@ loadPeople().catch(() => {});
 
 const AUTH = { user: null, enabled: false };
 
+/* ══════════════════════════ authentication & firebase ══════════════════════════ */
+
+let fbInstance = null;
+
+async function initFirebase() {
+  if (fbInstance !== null) return fbInstance;
+  try {
+    const res = await api('/api/auth/firebase-config');
+    if (!res.configured || !res.config?.apiKey) {
+      fbInstance = false;
+      return false;
+    }
+    const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js');
+    const {
+      getAuth, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword,
+      createUserWithEmailAndPassword, signOut, onAuthStateChanged,
+    } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js');
+
+    const app = initializeApp(res.config);
+    const auth = getAuth(app);
+    fbInstance = { auth, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged };
+
+    onAuthStateChanged(auth, async (fbUser) => {
+      if (fbUser) {
+        try {
+          const sync = await api('/api/auth/sync-firebase', {
+            body: {
+              uid: fbUser.uid,
+              email: fbUser.email,
+              displayName: fbUser.displayName,
+              photoURL: fbUser.photoURL,
+            },
+          });
+          AUTH.user = sync.user;
+          renderWhoami(AUTH);
+        } catch (e) {
+          console.warn('[Firebase Sync Error]', e);
+        }
+      }
+    });
+
+    return fbInstance;
+  } catch (err) {
+    console.warn('[Firebase Auth Unavailable, using local fallback]:', err.message);
+    fbInstance = false;
+    return false;
+  }
+}
+
 async function authBoot() {
   let st;
   try { st = await api('/api/auth/status'); } catch { return; }
   AUTH.enabled = st.enabled; AUTH.user = st.user; AUTH.transport = st.transport;
+  window.currentUser = st.user;
+  window.can = (perm) => {
+    if (!window.currentUser) return false;
+    if (window.currentUser.role === 'owner') return true;
+    const perms = window.currentUser.permissions || [];
+    return perms.includes('*') || perms.includes(perm);
+  };
 
-  if (!st.enabled) { $('#authGate').hidden = true; renderWhoami(st); return; }
+  // Initialize Firebase client in background
+  initFirebase().catch(() => {});
+
+  if (!st.enabled) {
+    $('#authGate').hidden = true;
+    renderWhoami(st);
+    setupAuthModal(st);
+    setupTeamModal();
+    return;
+  }
   if (st.needsSetup || !st.userCount) return renderAuthForm('setup', st);
   if (!st.user) return renderAuthForm('login', st);
 
   $('#authGate').hidden = true;
   renderWhoami(st);
+  setupAuthModal(st);
+  setupTeamModal();
 }
 
 function renderWhoami(st) {
   const host = $('#whoami');
   if (!host) return;
-  if (!st.enabled || !st.user) {
-    host.innerHTML = st.enabled ? '' : '';
+
+  const u = st.user || AUTH.user;
+  if (!u) {
+    host.innerHTML = `
+      <button class="auth-trigger-btn" id="authTriggerBtn" title="Sign in or create account">
+        <svg class="i sm" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <span>Sign in</span>
+      </button>`;
+    $('#authTriggerBtn')?.addEventListener('click', () => openAuthModal('signin'));
     return;
   }
-  const u = st.user;
-  const initials = u.name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
-  host.innerHTML = `<button class="whoami" id="whoBtn" title="${esc(u.username)} — ${esc(u.role)}">
-    <span class="avatar sm" style="background:hsl(210 52% 42%)">${esc(initials)}</span>
-    <span class="wn">${esc(u.name.split(' ')[0])}</span></button>`;
-  $('#whoBtn').addEventListener('click', async () => {
+
+  const initials = (u.name || u.username || 'U').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+  const avatarHtml = u.photoURL
+    ? `<img src="${esc(u.photoURL)}" class="avatar sm" alt="${esc(u.name)}" style="width:24px;height:24px;border-radius:50%;object-fit:cover">`
+    : `<span class="avatar sm" style="background:hsl(210 52% 42%)">${esc(initials)}</span>`;
+
+  host.innerHTML = `
+    <div class="auth-user-wrap">
+      <button class="whoami" id="whoBtn" title="${esc(u.username || u.name)}">
+        ${avatarHtml}
+        <span class="wn">${esc((u.name || u.username || '').split(' ')[0])}</span>
+        <span class="user-role-badge role-${esc(u.role)}">${esc(u.roleLabel || u.role)}</span>
+      </button>
+      <div class="auth-user-menu" id="authUserMenu" hidden>
+        <div style="padding:8px 12px;border-bottom:1px solid var(--line-soft);margin-bottom:4px">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+            <b style="font-size:12.5px;color:var(--ink)">${esc(u.name || u.username)}</b>
+            <span class="user-role-pill role-${esc(u.role)}">${esc(u.roleLabel || u.role)}</span>
+          </div>
+          <span style="display:block;font-size:11px;color:var(--ink3);overflow:hidden;text-overflow:ellipsis;margin-top:2px">${esc(u.email || u.username)}</span>
+          <span style="display:inline-block;margin-top:4px;font-size:10px;font-family:var(--data);padding:1px 6px;border-radius:8px;background:var(--sunk);color:var(--note)">${u.provider === 'firebase' ? 'Firebase Auth' : 'Workspace Account'}</span>
+        </div>
+        <button class="aum-item" id="aumTeam">
+          <svg class="i sm" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <span>Team &amp; Roles</span>
+        </button>
+        <button class="aum-item" id="aumSetup">
+          <svg class="i sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          <span>Account Settings</span>
+        </button>
+        <button class="aum-item danger" id="aumLogout">
+          <svg class="i sm" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          <span>Sign Out</span>
+        </button>
+      </div>
+    </div>`;
+
+  const whoBtn = $('#whoBtn');
+  const menu = $('#authUserMenu');
+  whoBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    menu.hidden = !menu.hidden;
+  });
+  document.addEventListener('click', () => { if (menu) menu.hidden = true; });
+
+  $('#aumTeam')?.addEventListener('click', () => {
+    menu.hidden = true;
+    openTeamModal();
+  });
+
+  $('#aumSetup')?.addEventListener('click', () => {
+    menu.hidden = true;
+    showPanel('setup');
+  });
+
+  $('#aumLogout')?.addEventListener('click', async () => {
     if (!confirm('Sign out?')) return;
+    try {
+      const fb = await initFirebase();
+      if (fb?.auth && fb.signOut) await fb.signOut(fb.auth);
+    } catch {}
     await api('/api/auth/logout', { body: {} });
     location.reload();
   });
+}
+
+function setupTeamModal() {
+  const dlg = $('#teamModal');
+  if (!dlg) return;
+  $('#teamModalClose')?.addEventListener('click', () => dlg.close());
+  if (!('closedBy' in HTMLDialogElement.prototype)) {
+    dlg.addEventListener('click', (event) => {
+      if (event.target !== dlg) return;
+      const rect = dlg.getBoundingClientRect();
+      const isInside = (
+        rect.top <= event.clientY &&
+        event.clientY <= rect.top + rect.height &&
+        rect.left <= event.clientX &&
+        event.clientX <= rect.left + rect.width
+      );
+      if (!isInside) dlg.close();
+    });
+  }
+}
+
+async function openTeamModal() {
+  const dlg = $('#teamModal');
+  if (!dlg) return;
+  if (typeof dlg.showModal === 'function') dlg.showModal(); else dlg.setAttribute('open', '');
+  await renderTeamModal();
+}
+
+async function renderTeamModal() {
+  const body = $('#teamModalBody');
+  if (!body) return;
+  body.innerHTML = '<div class="progress" style="padding:24px;text-align:center">Loading team members…</div>';
+
+  try {
+    const res = await api('/api/team');
+    const u = window.currentUser || AUTH.user;
+    const canManage = window.can ? window.can('team:manage') : (u?.role === 'owner' || u?.role === 'admin');
+
+    const roleHues = {
+      owner: '#8b5cf6',
+      admin: '#3b82f6',
+      editor: '#10b981',
+      viewer: '#64748b',
+    };
+
+    body.innerHTML = `
+      <div class="team-summary-bar">
+        <div class="team-count-info">
+          <span class="team-count-badge">${res.users.length} Account${res.users.length === 1 ? '' : 's'}</span>
+          <span class="team-user-role">Your Role: <b>${esc(u?.roleLabel || u?.role || 'Member')}</b></span>
+        </div>
+        ${canManage ? `<button class="go tiny" id="btnShowInvite">+ Invite Member</button>` : ''}
+      </div>
+
+      ${canManage ? `
+        <div class="team-invite-card" id="inviteCard" hidden>
+          <h4 class="sub" style="margin:0 0 10px;font-size:13px;color:var(--ink)">Invite / Add Team Member</h4>
+          <div class="form team-invite-form">
+            <div class="field"><label for="invName">Name</label><input id="invName" placeholder="Alex Rivers"></div>
+            <div class="field"><label for="invEmail">Email / Username</label><input id="invEmail" placeholder="alex@company.com"></div>
+            <div class="field"><label for="invPass">Temporary Password</label><input id="invPass" type="password" placeholder="At least 12 chars"></div>
+            <div class="field">
+              <label for="invRole">Role</label>
+              <select id="invRole">
+                <option value="editor" selected>Editor (Run crawls, generate AI copy)</option>
+                <option value="viewer">Viewer (Read-only audits and reports)</option>
+                ${u?.role === 'owner' ? '<option value="admin">Admin (Manage team and keys)</option>' : ''}
+              </select>
+            </div>
+            <div class="field" style="display:flex;align-items:flex-end">
+              <button class="go" id="btnSendInvite" style="width:100%">Create Account</button>
+            </div>
+          </div>
+          <div id="inviteMsg" style="margin-top:8px"></div>
+        </div>
+      ` : ''}
+
+      <div class="team-list">
+        ${res.users.map((mem) => {
+          const initials = (mem.name || mem.username || 'U').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+          const isMe = mem.id === u?.id;
+          const isOwner = mem.role === 'owner';
+          const canEditThisUser = canManage && !isOwner && (u?.role === 'owner' || mem.role !== 'admin');
+
+          return `
+            <div class="team-member-row">
+              <div class="tm-info">
+                <span class="avatar sm" style="background:${roleHues[mem.role] || '#64748b'}">${esc(initials)}</span>
+                <div class="tm-names">
+                  <div class="tm-name-line">
+                    <b>${esc(mem.name || mem.username)}</b>
+                    ${isMe ? '<span class="tm-you-tag">You</span>' : ''}
+                    <span class="user-role-pill role-${mem.role}">${esc(mem.roleLabel || mem.role)}</span>
+                  </div>
+                  <div class="tm-meta-line">
+                    <span>${esc(mem.email || mem.username)}</span> ·
+                    <span>${mem.lastLoginAt ? `Active ${ago(mem.lastLoginAt)}` : 'Never signed in'}</span>
+                    ${mem.activeSessions > 0 ? ` · <span class="active-dot" title="${mem.activeSessions} active sessions"></span> ${mem.activeSessions} session${mem.activeSessions === 1 ? '' : 's'}` : ''}
+                  </div>
+                </div>
+              </div>
+              <div class="tm-actions">
+                ${canEditThisUser ? `
+                  <select class="tm-role-select" data-uid="${esc(mem.id)}">
+                    <option value="viewer" ${mem.role === 'viewer' ? 'selected' : ''}>Viewer</option>
+                    <option value="editor" ${mem.role === 'editor' ? 'selected' : ''}>Editor</option>
+                    ${u?.role === 'owner' ? `<option value="admin" ${mem.role === 'admin' ? 'selected' : ''}>Admin</option>` : ''}
+                  </select>
+                  <button class="po-del tm-del-btn" data-delid="${esc(mem.id)}" title="Remove member">×</button>
+                ` : `<span class="tm-role-fixed">${esc(mem.roleLabel || mem.role)}</span>`}
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+
+      <details class="team-permissions-matrix">
+        <summary><b>Roles &amp; Permissions Matrix</b> (What can each role do?)</summary>
+        <div class="matrix-table-wrap">
+          <table class="matrix-table">
+            <thead>
+              <tr>
+                <th>Capability / Action</th>
+                <th>Viewer</th>
+                <th>Editor</th>
+                <th>Admin</th>
+                <th>Owner</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>View Audits, Findings &amp; Reports</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+              <tr><td>View Google Search Console &amp; Speed</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+              <tr><td>Run Site Crawls &amp; Competitor Scans</td><td class="no">✕</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+              <tr><td>Generate AI Content, Briefs &amp; Social Copy</td><td class="no">✕</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+              <tr><td>Edit Brand Context &amp; SEO Targets</td><td class="no">✕</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+              <tr><td>Manage Team Members (Invite / Change Roles)</td><td class="no">✕</td><td class="no">✕</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+              <tr><td>Configure API Keys &amp; System Integrations</td><td class="no">✕</td><td class="no">✕</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+              <tr><td>Manage Properties &amp; Full Organization Control</td><td class="no">✕</td><td class="no">✕</td><td class="no">✕</td><td class="yes">✓</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </details>
+    `;
+
+    $('#btnShowInvite')?.addEventListener('click', () => {
+      const card = $('#inviteCard');
+      if (card) card.hidden = !card.hidden;
+    });
+
+    $('#btnSendInvite')?.addEventListener('click', async (e) => {
+      const btn = e.currentTarget;
+      const name = $('#invName').value.trim();
+      const email = $('#invEmail').value.trim();
+      const password = $('#invPass').value;
+      const role = $('#invRole').value;
+      if (!email || !password) return msg('#inviteMsg', 'Email/Username and password are required.', 'err');
+
+      busy(btn, true, 'Creating…');
+      try {
+        await api('/api/team/invite', {
+          body: {
+            username: email.split('@')[0].toLowerCase().replace(/[^a-z0-9._-]/g, '_'),
+            email,
+            name: name || email.split('@')[0],
+            password,
+            role,
+          },
+        });
+        toast(`Added ${name || email} as ${role}.`, 'ok');
+        await renderTeamModal();
+      } catch (err) {
+        busy(btn, false);
+        msg('#inviteMsg', err.message, 'err');
+      }
+    });
+
+    $$('.tm-role-select').forEach((sel) => {
+      sel.addEventListener('change', async (e) => {
+        const uid = e.target.dataset.uid;
+        const newRole = e.target.value;
+        try {
+          await api(`/api/team/${uid}/role`, { method: 'PATCH', body: { role: newRole } });
+          toast('Role updated successfully.', 'ok');
+          await renderTeamModal();
+        } catch (err) {
+          toast(err.message, 'err');
+          await renderTeamModal();
+        }
+      });
+    });
+
+    $$('[data-delid]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const uid = btn.dataset.delid;
+        if (!confirm('Remove this team member? Their sessions will be terminated immediately.')) return;
+        try {
+          await api(`/api/auth/users/${uid}`, { method: 'DELETE' });
+          toast('Member removed.', 'ok');
+          await renderTeamModal();
+        } catch (err) {
+          toast(err.message, 'err');
+        }
+      });
+    });
+  } catch (err) {
+    body.innerHTML = `<div class="msg err">${esc(err.message)}</div>`;
+  }
+}
+
+  const whoBtn = $('#whoBtn');
+  const menu = $('#authUserMenu');
+  whoBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    menu.hidden = !menu.hidden;
+  });
+  document.addEventListener('click', () => { if (menu) menu.hidden = true; });
+
+  $('#aumSetup')?.addEventListener('click', () => {
+    menu.hidden = true;
+    showPanel('setup');
+  });
+
+  $('#aumLogout')?.addEventListener('click', async () => {
+    if (!confirm('Sign out?')) return;
+    try {
+      const fb = await initFirebase();
+      if (fb?.auth && fb.signOut) await fb.signOut(fb.auth);
+    } catch {}
+    await api('/api/auth/logout', { body: {} });
+    location.reload();
+  });
+}
+
+function setupAuthModal(st) {
+  const dialog = $('#authModal');
+  if (!dialog) return;
+
+  $('#authModalClose')?.addEventListener('click', () => dialog.close());
+
+  // Light-dismiss fallback for browsers without native closedby support
+  if (!('closedBy' in HTMLDialogElement.prototype)) {
+    dialog.addEventListener('click', (event) => {
+      if (event.target !== dialog) return;
+      const rect = dialog.getBoundingClientRect();
+      const isInside = (
+        rect.top <= event.clientY &&
+        event.clientY <= rect.top + rect.height &&
+        rect.left <= event.clientX &&
+        event.clientX <= rect.left + rect.width
+      );
+      if (!isInside) dialog.close();
+    });
+  }
+
+  $('#tabSignIn')?.addEventListener('click', () => switchAuthTab('signin'));
+  $('#tabSignUp')?.addEventListener('click', () => switchAuthTab('signup'));
+}
+
+let activeAuthTab = 'signin';
+
+function switchAuthTab(tab) {
+  activeAuthTab = tab;
+  $('#tabSignIn')?.setAttribute('aria-selected', String(tab === 'signin'));
+  $('#tabSignUp')?.setAttribute('aria-selected', String(tab === 'signup'));
+  renderAuthModalBody();
+}
+
+function openAuthModal(defaultTab = 'signin') {
+  const dialog = $('#authModal');
+  if (!dialog) return;
+  switchAuthTab(defaultTab);
+  dialog.showModal();
+}
+
+function renderAuthModalBody() {
+  const body = $('#authModalBody');
+  if (!body) return;
+
+  const isSignUp = activeAuthTab === 'signup';
+
+  body.innerHTML = `
+    <button class="google-auth-btn" id="btnGoogleAuth">
+      <svg class="google-icon" viewBox="0 0 24 24">
+        <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"/>
+        <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"/>
+        <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.17 0 9.99 0 12s.45 3.83 1.25 5.42l4.03-3.15z"/>
+        <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.93 6.72-4.93z"/>
+      </svg>
+      <span>Continue with Google</span>
+    </button>
+
+    <div class="auth-divider">or with email &amp; password</div>
+
+    <div class="field">
+      <label for="dlgUser">${isSignUp ? 'Email or Username' : 'Username or Email'}</label>
+      <input id="dlgUser" autocomplete="username" autocapitalize="off" spellcheck="false" placeholder="you@example.com">
+    </div>
+
+    ${isSignUp ? `
+    <div class="field">
+      <label for="dlgName">Full Name</label>
+      <input id="dlgName" autocomplete="name" placeholder="Alex Taylor">
+    </div>` : ''}
+
+    <div class="field">
+      <label for="dlgPass">Password</label>
+      <input id="dlgPass" type="password" autocomplete="${isSignUp ? 'new-password' : 'current-password'}" placeholder="••••••••••••">
+    </div>
+
+    <button class="go" id="dlgSubmitBtn" style="width:100%;margin-top:14px;justify-content:center">
+      ${isSignUp ? 'Create Account' : 'Sign In'}
+    </button>
+
+    <div id="dlgAuthMsg" style="margin-top:12px"></div>
+  `;
+
+  $('#btnGoogleAuth')?.addEventListener('click', async () => {
+    const btn = $('#btnGoogleAuth');
+    busy(btn, true, 'Connecting Google…');
+    try {
+      const fb = await initFirebase();
+      if (!fb || !fb.auth) throw new Error('Firebase Google Authentication requires configuring FIREBASE_API_KEY in .env or Google Cloud credentials.');
+      const provider = new fb.GoogleAuthProvider();
+      const cred = await fb.signInWithPopup(fb.auth, provider);
+      const user = cred.user;
+      await api('/api/auth/sync-firebase', {
+        body: { uid: user.uid, email: user.email, displayName: user.displayName, photoURL: user.photoURL },
+      });
+      AUTH.user = { id: user.uid, name: user.displayName, email: user.email, photoURL: user.photoURL, role: 'member', provider: 'firebase' };
+      renderWhoami(AUTH);
+      $('#authModal')?.close();
+      toast('Signed in successfully with Google!', 'ok');
+    } catch (e) {
+      msg('#dlgAuthMsg', e.message, 'err');
+    } finally {
+      busy(btn, false);
+    }
+  });
+
+  const submitAuth = async () => {
+    const btn = $('#dlgSubmitBtn');
+    const userVal = $('#dlgUser').value.trim();
+    const passVal = $('#dlgPass').value;
+    const nameVal = $('#dlgName')?.value.trim();
+
+    if (!userVal || !passVal) return msg('#dlgAuthMsg', 'Please provide both username/email and password.', 'err');
+    busy(btn, true, isSignUp ? 'Creating account…' : 'Signing in…');
+
+    try {
+      const isEmail = userVal.includes('@');
+      let fbHandled = false;
+
+      // Try Firebase Auth if configured and email is provided
+      const fb = await initFirebase();
+      if (fb && fb.auth && isEmail) {
+        try {
+          let cred;
+          if (isSignUp) {
+            cred = await fb.createUserWithEmailAndPassword(fb.auth, userVal, passVal);
+          } else {
+            cred = await fb.signInWithEmailAndPassword(fb.auth, userVal, passVal);
+          }
+          const user = cred.user;
+          await api('/api/auth/sync-firebase', {
+            body: { uid: user.uid, email: user.email, displayName: nameVal || user.displayName, photoURL: user.photoURL },
+          });
+          AUTH.user = { id: user.uid, name: nameVal || user.displayName || user.email, email: user.email, role: 'member', provider: 'firebase' };
+          fbHandled = true;
+        } catch (fbErr) {
+          // If Firebase failed, fallback to local auth endpoint
+          console.warn('[Firebase Auth fallback to local]', fbErr.message);
+        }
+      }
+
+      if (!fbHandled) {
+        const endpoint = isSignUp ? '/api/auth/register' : '/api/auth/login';
+        const res = await api(endpoint, {
+          body: { username: userVal, password: passVal, name: nameVal || userVal },
+        });
+        AUTH.user = res.user;
+      }
+
+      renderWhoami(AUTH);
+      $('#authModal')?.close();
+      toast(isSignUp ? 'Account created and signed in!' : 'Welcome back! Signed in.', 'ok');
+      location.reload();
+    } catch (e) {
+      msg('#dlgAuthMsg', e.message, 'err');
+    } finally {
+      busy(btn, false);
+    }
+  };
+
+  $('#dlgSubmitBtn')?.addEventListener('click', submitAuth);
+  ['#dlgUser', '#dlgPass', '#dlgName'].forEach((sel) => $(sel)?.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitAuth(); }));
 }
 
 function renderAuthForm(mode, st) {
@@ -1786,26 +2312,33 @@ async function renderAuthSettings() {
     const st = await api('/api/auth/status');
     const t = st.transport || {};
 
-    host.innerHTML = `<h3 class="sub">Sign-in</h3>
+    host.innerHTML = `<h3 class="sub">Team &amp; Access Control</h3>
       <div class="transport ${t.level === 'danger' ? 'danger' : 'ok'}">${esc(t.message)}</div>
       ${st.enabled ? `
-        <div class="msg ok">Sign-in is on. ${st.userCount} account${st.userCount === 1 ? '' : 's'}.</div>
+        <div class="msg ok">Access Control is active. ${st.userCount} account${st.userCount === 1 ? '' : 's'}.</div>
+        <div style="margin:10px 0">
+          <button class="go ghost tiny" id="openTeamModalBtn" style="font-weight:600">Open Team &amp; Permissions Manager</button>
+        </div>
         <div class="checks">
           ${st.users.map((u) => `<div class="person">
-            <span class="avatar" style="background:hsl(210 52% 42%)">${esc(u.name.trim().split(/\\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase())}</span>
-            <span class="pn"><b>${esc(u.name)}</b><span class="pr"> — ${esc(u.username)} · ${esc(u.role)}</span>
+            <span class="avatar" style="background:${u.role === 'owner' ? '#8b5cf6' : u.role === 'admin' ? '#3b82f6' : u.role === 'editor' ? '#10b981' : '#64748b'}">${esc(u.name.trim().split(/\\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase())}</span>
+            <span class="pn"><b>${esc(u.name)}</b><span class="pr"> — ${esc(u.username || u.email)} · <span class="user-role-pill role-${esc(u.role)}">${esc(u.roleLabel || u.role)}</span></span>
               <span class="pr" style="display:block">${u.lastLoginAt ? `last signed in ${ago(u.lastLoginAt)}` : 'never signed in'}</span></span>
-            ${st.user?.role === 'owner' && u.id !== st.user.id ? `<button class="po-del" data-udel="${esc(u.id)}" title="Remove">×</button>` : ''}
+            ${(st.user?.role === 'owner' || (st.user?.role === 'admin' && u.role !== 'owner' && u.role !== 'admin')) && u.id !== st.user.id ? `<button class="po-del" data-udel="${esc(u.id)}" title="Remove">×</button>` : ''}
           </div>`).join('')}
         </div>
-        ${st.user?.role === 'owner' ? `
-          <div class="form">
-            <div class="field"><label for="nuUser">Username</label><input id="nuUser" autocapitalize="off"></div>
+        ${(st.user?.role === 'owner' || st.user?.role === 'admin') ? `
+          <div class="form" style="margin-top:14px">
+            <div class="field"><label for="nuUser">Username / Email</label><input id="nuUser" autocapitalize="off"></div>
             <div class="field"><label for="nuName">Name</label><input id="nuName"></div>
             <div class="field"><label for="nuPass">Password</label><input id="nuPass" type="password" autocomplete="new-password"></div>
-            <div class="field"><label for="nuRole">Role</label><select id="nuRole"><option value="member">Member</option><option value="owner">Owner</option></select></div>
+            <div class="field"><label for="nuRole">Role</label><select id="nuRole">
+              <option value="editor">Editor (Audits &amp; AI)</option>
+              <option value="viewer">Viewer (Read-only)</option>
+              ${st.user?.role === 'owner' ? '<option value="admin">Admin</option><option value="owner">Owner</option>' : ''}
+            </select></div>
             <div class="field"><label>&nbsp;</label><button class="go" id="nuAdd">Add person</button></div>
-          </div>` : '<p class="note">Only an owner can add or remove accounts.</p>'}
+          </div>` : '<p class="note">Only an owner or admin can add or remove accounts.</p>'}
         <div class="copybar">
           <button class="go ghost tiny" id="auRevoke">Sign out everywhere</button>
           <span class="src">Ends every session for your account, including this one. Use it if a machine goes missing.</span>
@@ -1819,8 +2352,10 @@ async function renderAuthSettings() {
           <div class="field"><label for="suPass">Password</label><input id="suPass" type="password" autocomplete="new-password"></div>
           <div class="field"><label>&nbsp;</label><button class="go" id="suGo">Turn sign-in on</button></div>
         </div>
-        <p class="note">At least 12 characters. Length matters far more than punctuation. This account becomes the owner, and there is no password reset — if you lose it, delete <code>data/auth.json</code> to start over.</p>
+        <p class="note">At least 12 characters. Length matters far more than punctuation. This account becomes the owner.</p>
         <div id="authMsg"></div>`}`;
+
+    $('#openTeamModalBtn')?.addEventListener('click', () => openTeamModal());
 
     $('#suGo')?.addEventListener('click', async (e) => {
       const btn = e.currentTarget;
@@ -2208,6 +2743,7 @@ onPanel('logs', () => renderLogs());
 onPanel('brand', () => renderBrand().catch((e) => msg('#brandOut', e.message, 'err')));
 onPanel('program', () => renderProgram());
 onPanel('campaigns', () => renderCampaigns().catch((e) => msg('#campOut', e.message, 'err')));
+onPanel('social', () => renderSocial().catch((e) => msg('#socialOut', e.message, 'err')));
 
 /* Bound once. Nothing after this point may re-clone nav items. */
 function bindNav() {
