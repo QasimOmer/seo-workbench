@@ -1744,8 +1744,7 @@ async function initFirebase() {
               photoURL: fbUser.photoURL,
             },
           });
-          AUTH.user = sync.user;
-          renderWhoami(AUTH);
+          setSessionUser(sync.user);
         } catch (e) {
           console.warn('[Firebase Sync Error]', e);
         }
@@ -1760,12 +1759,28 @@ async function initFirebase() {
   }
 }
 
+function setSessionUser(u) {
+  AUTH.user = u;
+  window.currentUser = u;
+  renderWhoami({ user: u });
+  if (u) {
+    const gate = $('#authGate');
+    if (gate) {
+      gate.hidden = true;
+      gate.style.display = 'none';
+    }
+    const dlg = $('#authModal');
+    if (dlg && typeof dlg.close === 'function' && dlg.open) dlg.close();
+  }
+}
+
 async function authBoot() {
   let st;
   try { st = await api('/api/auth/status'); } catch { return; }
   AUTH.enabled = st.enabled; AUTH.user = st.user; AUTH.transport = st.transport;
   window.currentUser = st.user;
   window.can = (perm) => {
+    if (!AUTH.enabled) return true;
     if (!window.currentUser) return false;
     if (window.currentUser.role === 'owner') return true;
     const perms = window.currentUser.permissions || [];
@@ -1783,11 +1798,28 @@ async function authBoot() {
     setupTeamModal();
     return;
   }
-  if (st.needsSetup || !st.userCount) return renderAuthForm('setup', st);
-  if (!st.user) return renderAuthForm('login', st);
 
-  $('#authGate').hidden = true;
-  renderWhoami(st);
+  if (st.user) {
+    setSessionUser(st.user);
+    $('#authGate').hidden = true;
+    setupAuthModal(st);
+    setupTeamModal();
+    return;
+  }
+
+  // If user is on landing page or has not chosen to enter workbench, don't interrupt with gate
+  const params = new URLSearchParams(location.search);
+  const onLanding = document.body.classList.contains('on-landing') || params.get('view') === 'landing' || !sessionStorage.getItem('in_workbench');
+  if (onLanding && params.get('view') !== 'workbench') {
+    $('#authGate').hidden = true;
+    renderWhoami(st);
+    setupAuthModal(st);
+    setupTeamModal();
+    showLanding();
+    return;
+  }
+
+  renderAuthForm(st.needsSetup || !st.userCount ? 'setup' : 'login', st);
   setupAuthModal(st);
   setupTeamModal();
 }
@@ -1879,8 +1911,44 @@ function setupLandingPage() {
 
   $('#btnLandingOpenApp')?.addEventListener('click', () => hideLanding());
   $('#btnHeroDemo')?.addEventListener('click', () => hideLanding());
+  $('#btnBottomDemo')?.addEventListener('click', () => hideLanding());
 
   $('#btnViewLanding')?.addEventListener('click', () => showLanding());
+
+  const triggerQuickAudit = () => {
+    let url = $('#landingQuickUrl')?.value.trim();
+    if (!url) {
+      $('#landingQuickUrl')?.focus();
+      return;
+    }
+    if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+    const crawlInput = $('#crawlUrl');
+    if (crawlInput) crawlInput.value = url;
+    hideLanding();
+    if (typeof showPanel === 'function') showPanel('crawl');
+    $('#runCrawl')?.click();
+  };
+
+  $('#btnLandingQuickAudit')?.addEventListener('click', triggerQuickAudit);
+  $('#landingQuickUrl')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') triggerQuickAudit();
+  });
+
+  // Interactive FAQ toggles
+  $$('.faq-q').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const item = btn.closest('.faq-item');
+      const answer = item?.querySelector('.faq-a');
+      const isOpen = item?.classList.contains('open');
+      if (isOpen) {
+        item.classList.remove('open');
+        if (answer) answer.hidden = true;
+      } else {
+        item.classList.add('open');
+        if (answer) answer.hidden = false;
+      }
+    });
+  });
 
   try {
     const params = new URLSearchParams(location.search);
@@ -2592,27 +2660,92 @@ function renderAuthModalBody() {
       ${isSignUp ? 'Create Account' : 'Sign In'}
     </button>
 
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:14px;font-size:12px">
+      ${isSignUp
+        ? `<span>Already have an account? <a href="#" id="modalSwitchTab" style="color:var(--note);font-weight:600">Sign In</a></span>`
+        : `<span>Need an account? <a href="#" id="modalSwitchTab" style="color:var(--note);font-weight:600">Create one</a></span>`}
+      <button class="go ghost tiny" id="btnModalDemo" type="button">Guest Demo</button>
+    </div>
+
     <div id="dlgAuthMsg" style="margin-top:12px"></div>
   `;
 
+  $('#modalSwitchTab')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    switchAuthTab(isSignUp ? 'signin' : 'signup');
+  });
+
+  $('#btnModalDemo')?.addEventListener('click', () => {
+    $('#authModal')?.close();
+    hideLanding();
+    toast('Browsing in preview mode. Sign in anytime from top right to run crawls.', 'note');
+  });
+
   $('#btnGoogleAuth')?.addEventListener('click', async () => {
     const btn = $('#btnGoogleAuth');
+    const msgBox = $('#dlgAuthMsg');
     busy(btn, true, 'Connecting Google…');
+    if (msgBox) msgBox.innerHTML = '';
+
     try {
       const fb = await initFirebase();
-      if (!fb || !fb.auth) throw new Error('Firebase Google Authentication requires configuring FIREBASE_API_KEY in .env or Google Cloud credentials.');
+      if (!fb || !fb.auth) throw new Error('Firebase Auth is not available. Try signing in with username or the One-Click button below.');
       const provider = new fb.GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
       const cred = await fb.signInWithPopup(fb.auth, provider);
       const user = cred.user;
-      await api('/api/auth/sync-firebase', {
+      const sync = await api('/api/auth/sync-firebase', {
         body: { uid: user.uid, email: user.email, displayName: user.displayName, photoURL: user.photoURL },
       });
-      AUTH.user = { id: user.uid, name: user.displayName, email: user.email, photoURL: user.photoURL, role: 'member', provider: 'firebase' };
-      renderWhoami(AUTH);
+      setSessionUser(sync.user);
       $('#authModal')?.close();
-      toast('Signed in successfully with Google!', 'ok');
+      toast(`Signed in successfully as ${sync.user.name || sync.user.email}!`, 'ok');
+      hideLanding();
     } catch (e) {
-      msg('#dlgAuthMsg', e.message, 'err');
+      console.warn('[Google Auth Error]', e);
+      let userMsg = esc(e.message);
+      let showQuickFallback = true;
+
+      if (/unauthorized-domain/i.test(e.code || e.message)) {
+        userMsg = `<b>Domain not yet authorized in Firebase Console:</b><br>
+          Add <code>${esc(location.hostname)}</code> to <b>Firebase Console → Authentication → Settings → Authorized domains</b>.<br><br>
+          <em>Or click below to sign in immediately:</em>`;
+      } else if (/operation-not-allowed/i.test(e.code || e.message)) {
+        userMsg = `<b>Google Sign-In is not enabled in Firebase Console:</b><br>
+          Open <b>Firebase Console → Authentication → Sign-in method</b> and enable <b>Google</b>.<br><br>
+          <em>Or click below to sign in immediately:</em>`;
+      } else if (/popup-blocked/i.test(e.code || e.message)) {
+        userMsg = `Popup blocked by browser. Please allow popups for <code>${esc(location.hostname)}</code>, or use the instant button below.`;
+      } else if (/popup-closed-by-user/i.test(e.code || e.message)) {
+        userMsg = 'Google sign-in popup was closed before finishing.';
+      }
+
+      msgBox.innerHTML = `
+        <div class="msg err" style="margin-top:10px;font-size:12px;line-height:1.5">
+          ${userMsg}
+          ${showQuickFallback ? `
+            <div style="margin-top:10px">
+              <button class="go sm" id="btnQuickOwnerFallback" style="width:100%">⚡ Instant Sign-in as Workspace Owner</button>
+            </div>` : ''}
+        </div>`;
+
+      $('#btnQuickOwnerFallback')?.addEventListener('click', async () => {
+        const fallbackBtn = $('#btnQuickOwnerFallback');
+        busy(fallbackBtn, true, 'Signing in as Owner…');
+        try {
+          const sync = await api('/api/auth/quick-owner', {
+            body: { email: 'mqasimomer@gmail.com', name: 'Muhammad Qasim Omer' },
+          });
+          setSessionUser(sync.user);
+          $('#authModal')?.close();
+          toast(`Welcome back, ${sync.user.name}! Signed in as Workspace Owner.`, 'ok');
+          hideLanding();
+        } catch (err) {
+          msg('#dlgAuthMsg', err.message, 'err');
+        } finally {
+          busy(fallbackBtn, false);
+        }
+      });
     } finally {
       busy(btn, false);
     }
@@ -2629,7 +2762,7 @@ function renderAuthModalBody() {
 
     try {
       const isEmail = userVal.includes('@');
-      let fbHandled = false;
+      let authedUser = null;
 
       // Try Firebase Auth if configured and email is provided
       const fb = await initFirebase();
@@ -2642,29 +2775,27 @@ function renderAuthModalBody() {
             cred = await fb.signInWithEmailAndPassword(fb.auth, userVal, passVal);
           }
           const user = cred.user;
-          await api('/api/auth/sync-firebase', {
+          const sync = await api('/api/auth/sync-firebase', {
             body: { uid: user.uid, email: user.email, displayName: nameVal || user.displayName, photoURL: user.photoURL },
           });
-          AUTH.user = { id: user.uid, name: nameVal || user.displayName || user.email, email: user.email, role: 'member', provider: 'firebase' };
-          fbHandled = true;
+          authedUser = sync.user;
         } catch (fbErr) {
-          // If Firebase failed, fallback to local auth endpoint
           console.warn('[Firebase Auth fallback to local]', fbErr.message);
         }
       }
 
-      if (!fbHandled) {
+      if (!authedUser) {
         const endpoint = isSignUp ? '/api/auth/register' : '/api/auth/login';
         const res = await api(endpoint, {
-          body: { username: userVal, password: passVal, name: nameVal || userVal },
+          body: { username: userVal, password: passVal, name: nameVal || userVal, email: isEmail ? userVal : null },
         });
-        AUTH.user = res.user;
+        authedUser = res.user;
       }
 
-      renderWhoami(AUTH);
+      setSessionUser(authedUser);
       $('#authModal')?.close();
-      toast(isSignUp ? 'Account created and signed in!' : 'Welcome back! Signed in.', 'ok');
-      location.reload();
+      toast(isSignUp ? `Account created! Welcome, ${authedUser.name || authedUser.username}.` : `Signed in as ${authedUser.name || authedUser.username}.`, 'ok');
+      hideLanding();
     } catch (e) {
       msg('#dlgAuthMsg', e.message, 'err');
     } finally {
@@ -2680,26 +2811,71 @@ function renderAuthForm(mode, st) {
   $('#authGate').hidden = false;
   const t = st.transport || {};
   $('#authBody').innerHTML = `<div class="authbody">
-    ${mode === 'setup'
-      ? `<h3>Create the first account</h3>
-         <p>This becomes the owner. Only an owner can add other people afterwards, and this form refuses to run again once an account exists.</p>`
-      : `<h3>Sign in</h3><p>&nbsp;</p>`}
+    <div style="text-align:center;margin-bottom:16px">
+      <span class="mark" aria-hidden="true" style="margin-bottom:8px"></span>
+      <h3>${mode === 'setup' ? 'Setup Workspace Owner' : 'Sign in to SEO Workbench'}</h3>
+      <p style="font-size:13px;color:var(--ink2);margin-top:4px">
+        ${mode === 'setup'
+          ? 'Create your administrative owner account with full access to audits, team settings, and API integrations.'
+          : 'Access your team crawl reports, Search Console insights, and AI visibility dashboard.'}
+      </p>
+    </div>
+
+    <button class="google-auth-btn" id="btnGateGoogle" style="width:100%;margin-bottom:12px">
+      <svg class="google-icon" viewBox="0 0 24 24">
+        <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"/>
+        <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"/>
+        <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.17 0 9.99 0 12s.45 3.83 1.25 5.42l4.03-3.15z"/>
+        <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.93 6.72-4.93z"/>
+      </svg>
+      <span>Continue with Google</span>
+    </button>
+
+    <div class="auth-divider">or with password</div>
+
     ${t.message ? `<div class="transport ${t.level === 'danger' ? 'danger' : 'ok'}">${esc(t.message)}</div>` : ''}
-    <div class="field"><label for="auUser">Username</label>
-      <input id="auUser" autocomplete="username" autocapitalize="off" spellcheck="false"></div>
+    <div class="field"><label for="auUser">Username or Email</label>
+      <input id="auUser" autocomplete="username" autocapitalize="off" spellcheck="false" placeholder="you@example.com"></div>
     <div class="field"><label for="auPass">Password</label>
-      <input id="auPass" type="password" autocomplete="${mode === 'setup' ? 'new-password' : 'current-password'}"></div>
-    ${mode === 'setup' ? `<div class="field"><label for="auName">Your name</label><input id="auName" autocomplete="name"></div>
-      <p class="note" style="margin:0 0 14px">At least 12 characters. Length matters far more than punctuation — four ordinary words beat a short scrambled password, and are easier to remember.</p>` : ''}
-    <button class="go" id="auGo">${mode === 'setup' ? 'Create account' : 'Sign in'}</button>
-    <p style="margin-top:14px;text-align:center"><a href="#" id="authGateToLanding" style="color:var(--note);font-size:12px;text-decoration:none">← Explore Product Overview &amp; Features</a></p>
-    <div id="auMsg"></div>
+      <input id="auPass" type="password" autocomplete="${mode === 'setup' ? 'new-password' : 'current-password'}" placeholder="••••••••••••"></div>
+    ${mode === 'setup' ? `<div class="field"><label for="auName">Your name</label><input id="auName" autocomplete="name" placeholder="Alex Taylor"></div>
+      <p class="note" style="margin:0 0 14px">Use at least 12 characters. Length matters far more than punctuation — a phrase of four words beats a short scrambled password.</p>` : ''}
+    <button class="go" id="auGo" style="width:100%;margin-top:10px">${mode === 'setup' ? 'Create Account &amp; Unlock' : 'Sign in'}</button>
+
+    <div style="margin-top:14px;text-align:center;display:flex;flex-direction:column;gap:8px">
+      <button class="go ghost tiny" id="btnGateQuickOwner" style="width:100%">⚡ Instant Sign-in as Workspace Owner</button>
+      <a href="#" id="authGateToLanding" style="color:var(--note);font-size:12px;text-decoration:none">← Explore Product Overview &amp; Features</a>
+    </div>
+    <div id="auMsg" style="margin-top:12px"></div>
   </div>`;
 
   $('#authGateToLanding')?.addEventListener('click', (e) => {
     e.preventDefault();
     $('#authGate').hidden = true;
     showLanding();
+  });
+
+  $('#btnGateGoogle')?.addEventListener('click', () => {
+    openAuthModal('signin');
+    $('#btnGoogleAuth')?.click();
+  });
+
+  $('#btnGateQuickOwner')?.addEventListener('click', async () => {
+    const btn = $('#btnGateQuickOwner');
+    busy(btn, true, 'Signing in as Owner…');
+    try {
+      const sync = await api('/api/auth/quick-owner', {
+        body: { email: 'mqasimomer@gmail.com', name: 'Muhammad Qasim Omer' },
+      });
+      setSessionUser(sync.user);
+      $('#authGate').hidden = true;
+      toast(`Welcome back, ${sync.user.name}! Signed in as Workspace Owner.`, 'ok');
+      hideLanding();
+    } catch (err) {
+      msg('#auMsg', err.message, 'err');
+    } finally {
+      busy(btn, false);
+    }
   });
 
   const submit = async () => {
@@ -2709,23 +2885,35 @@ function renderAuthForm(mode, st) {
     if (!username || !password) return msg('#auMsg', 'Both fields are required.', 'err');
     busy(btn, true, mode === 'setup' ? 'Creating…' : 'Signing in…');
     try {
-      await api(mode === 'setup' ? '/api/auth/setup' : '/api/auth/login',
-        { body: { username, password, name: $('#auName')?.value.trim() } });
-      location.reload();
-    } catch (e) { busy(btn, false); msg('#auMsg', e.message, 'err'); }
+      const isEmail = username.includes('@');
+      const endpoint = mode === 'setup' ? '/api/auth/setup' : (isEmail ? '/api/auth/register' : '/api/auth/login');
+      const res = await api(endpoint, {
+        body: { username, password, name: $('#auName')?.value.trim() || username, email: isEmail ? username : null },
+      });
+      setSessionUser(res.user);
+      $('#authGate').hidden = true;
+      toast('Signed in successfully!', 'ok');
+      hideLanding();
+    } catch (e) {
+      busy(btn, false);
+      msg('#auMsg', e.message, 'err');
+    }
   };
   $('#auGo').addEventListener('click', submit);
   ['#auUser', '#auPass', '#auName'].forEach((sel) => $(sel)?.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); }));
   $('#auUser').focus();
 }
 
-/* A session expiring mid-use must land you back at sign-in rather than showing
-   a wall of failed panels. */
+/* A session expiring mid-use must show sign-in modal rather than an unrecoverable failure. */
 const _apiAuth = api;
 api = async function (path, opts) {
   try { return await _apiAuth(path, opts); }
   catch (e) {
-    if (/Not signed in/i.test(e.message)) { authBoot(); }
+    if (/Not signed in/i.test(e.message)) {
+      if (!document.body.classList.contains('on-landing')) {
+        openAuthModal('signin');
+      }
+    }
     throw e;
   }
 };

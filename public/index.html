@@ -83,8 +83,24 @@
       <p class="landing-hero-sub">
         An autonomous diagnostic workbench for engineering and growth teams. Real-user Core Web Vitals, Google Search Console intelligence, 14-point site crawl audits, automated code fixes, and platform-sized social assets — with multi-user Role-Based Access Control.
       </p>
-      <div class="landing-hero-ctas">
-        <button class="go xl" id="btnHeroStart">🚀 Get Started / Sign In</button>
+
+      <!-- Instant Audit Launcher Bar -->
+      <div class="landing-quick-audit">
+        <div class="lqa-input-wrap">
+          <span class="lqa-prefix">https://</span>
+          <input type="text" id="landingQuickUrl" placeholder="your-domain.com" autocomplete="off" spellcheck="false">
+        </div>
+        <button class="go xl lqa-btn" id="btnLandingQuickAudit">⚡ Run Free Audit</button>
+      </div>
+      <div class="lqa-hints">
+        <span>&check; 14-Point Diagnostic</span>
+        <span>&check; Core Web Vitals</span>
+        <span>&check; Search Console Ready</span>
+        <span>&check; Zero Setup Needed</span>
+      </div>
+
+      <div class="landing-hero-ctas" style="margin-top:20px">
+        <button class="go xl" id="btnHeroStart">🚀 Sign In / Create Account</button>
         <button class="go ghost xl" id="btnHeroDemo">🛠️ Launch Workbench (Demo Mode)</button>
       </div>
 
@@ -175,19 +191,28 @@
       </div>
     </section>
 
-    <!-- Interactive Ladder Preview -->
+    <!-- Complete 14-Rung Diagnostic Ladder -->
     <section class="landing-section alt" id="landingLadder">
       <div class="landing-sec-hd">
-        <span class="landing-sec-kicker">Diagnostic Order</span>
+        <span class="landing-sec-kicker">Ordered Engineering Diagnostics</span>
         <h2>The 14-Rung SEO Diagnostic Ladder</h2>
-        <p>Fixing content depth on a page blocked by robots.txt is wasted effort. The ladder enforces fixing prerequisites first.</p>
+        <p>Fixing content depth on a page blocked by robots.txt is wasted effort. The ladder enforces fixing prerequisites in the exact order search engines process them.</p>
       </div>
-      <div class="landing-ladder-list">
+      <div class="landing-ladder-grid">
         <div class="lll-item"><span class="lll-num">01</span><div><b>Host Reachable &amp; TLS</b><p>DNS resolution, HTTPS certificate valid, redirect chains from HTTP/non-www.</p></div></div>
-        <div class="lll-item"><span class="lll-num">02</span><div><b>Robots &amp; Blocking</b><p>No unintentional disallow rules blocking Googlebot from CSS, JS, or money pages.</p></div></div>
+        <div class="lll-item"><span class="lll-num">02</span><div><b>Robots.txt &amp; Crawl Blocks</b><p>No unintentional disallow rules blocking Googlebot from CSS, JS, or money pages.</p></div></div>
         <div class="lll-item"><span class="lll-num">03</span><div><b>Canonical Integrity</b><p>Self-referential, cross-domain, or parameterized canonicals verified without loops.</p></div></div>
         <div class="lll-item"><span class="lll-num">04</span><div><b>Indexability &amp; Headers</b><p>X-Robots-Tag, noindex meta tags, and 404/301 status hygiene.</p></div></div>
-        <div class="lll-item"><span class="lll-num">05</span><div><b>Schema &amp; Rich Results</b><p>Valid JSON-LD markup without parsing errors for articles, products, and FAQs.</p></div></div>
+        <div class="lll-item"><span class="lll-num">05</span><div><b>Schema &amp; Structured Data</b><p>Valid JSON-LD markup without syntax errors for articles, products, and FAQs.</p></div></div>
+        <div class="lll-item"><span class="lll-num">06</span><div><b>Response Status &amp; Redirects</b><p>Eliminates 301 redirect chains, 5xx server drops, and soft 404 dead ends.</p></div></div>
+        <div class="lll-item"><span class="lll-num">07</span><div><b>Content Quality &amp; Thin Pages</b><p>Identifies duplicate content, thin bodies (&lt;300 words), and boilerplate bloat.</p></div></div>
+        <div class="lll-item"><span class="lll-num">08</span><div><b>Heading &amp; Title Architecture</b><p>Strict H1 uniqueness, missing meta descriptions, and truncated title tags.</p></div></div>
+        <div class="lll-item"><span class="lll-num">09</span><div><b>Internal Link Flow &amp; Orphans</b><p>Finds unlinked orphan pages and optimizes PageRank flow to conversion pages.</p></div></div>
+        <div class="lll-item"><span class="lll-num">10</span><div><b>Real-User Core Web Vitals</b><p>Audits 75th-percentile real-world LCP, INP, and CLS against Google's thresholds.</p></div></div>
+        <div class="lll-item"><span class="lll-num">11</span><div><b>Mobile &amp; Viewport Usability</b><p>Validates mobile-first indexing, responsive viewport tags, and touch targets.</p></div></div>
+        <div class="lll-item"><span class="lll-num">12</span><div><b>Security &amp; Response Headers</b><p>HSTS, CSP, X-Content-Type-Options, and Referrer-Policy audit scores.</p></div></div>
+        <div class="lll-item"><span class="lll-num">13</span><div><b>Social Metadata &amp; Open Graph</b><p>Verifies og:image, twitter:card, and social preview fallbacks for viral sharing.</p></div></div>
+        <div class="lll-item"><span class="lll-num">14</span><div><b>Hreflang &amp; Internationalization</b><p>Validates reciprocal language alternates and prevents regional indexing penalties.</p></div></div>
       </div>
     </section>
 
@@ -222,12 +247,54 @@
       </div>
     </section>
 
+    <!-- Interactive FAQ Section -->
+    <section class="landing-section" id="landingFaq">
+      <div class="landing-sec-hd">
+        <span class="landing-sec-kicker">Frequently Asked Questions</span>
+        <h2>Everything you need to know about SEO Workbench</h2>
+        <p>Clear answers to common architecture, security, and deployment questions.</p>
+      </div>
+      <div class="landing-faq-list">
+        <div class="faq-item">
+          <button class="faq-q" type="button">Why is an engineering approach to SEO better than generic tools?<span class="faq-icon">&plus;</span></button>
+          <div class="faq-a" hidden>
+            <p>Traditional tools give arbitrary scores like "74/100" without explaining prerequisites. SEO Workbench uses a strict 14-point dependency ladder: fixing content depth on a URL blocked by robots.txt or failing TLS is wasted effort. You get exact root causes and code patches.</p>
+          </div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-q" type="button">How does Google Search Console OAuth work securely on Vercel?<span class="faq-icon">&plus;</span></button>
+          <div class="faq-a" hidden>
+            <p>The OAuth flow dynamically adapts redirect URIs to your active production domain. Tokens are stored encrypted, and exchanges use connection-resilient direct HTTP transfers that prevent socket reuse resets in serverless environments.</p>
+          </div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-q" type="button">How do team roles and RBAC permissions function?<span class="faq-icon">&plus;</span></button>
+          <div class="faq-a" hidden>
+            <p>We provide four distinct roles: <b>Owner</b> (full admin authority), <b>Admin</b> (team &amp; integrations management), <b>Editor</b> (run crawls, generate content &amp; copy), and <b>Viewer</b> (read-only audit stakeholder). All sessions use cryptographically signed stateless tokens that work seamlessly across serverless lambdas.</p>
+          </div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-q" type="button">Can I run crawls in serverless environments without timeouts?<span class="faq-icon">&plus;</span></button>
+          <div class="faq-a" hidden>
+            <p>Yes. Crawls feature intelligent concurrency pools, streaming progress reporting, and state caching in serverless temporary memory (<code>/tmp/data</code>) with automated recovery, so crawls complete efficiently without filesystem write blocks.</p>
+          </div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-q" type="button">Can I try the tool before signing in or configuring keys?<span class="faq-icon">&plus;</span></button>
+          <div class="faq-a" hidden>
+            <p>Yes! You can explore the entire workbench using Demo Mode with pre-populated crawl data, or run instant live audits on any public URL directly from the landing page.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- Bottom CTA Banner -->
     <section class="landing-cta-banner">
       <h2>Ready to take control of your technical SEO?</h2>
       <p>Launch an audit in under 60 seconds. Connect your Search Console and Firebase team accounts anytime.</p>
       <div class="landing-hero-ctas">
         <button class="go xl" id="btnBottomSignIn">Sign In &amp; Launch Workbench &rarr;</button>
+        <button class="go ghost xl" id="btnBottomDemo">Explore Demo Mode</button>
       </div>
     </section>
   </main>

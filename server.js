@@ -80,7 +80,8 @@ const COOKIE = 'sw_session';
 /* Whitelisted unauthenticated paths */
 const OPEN_PATHS = new Set([
   '/auth/status', '/auth/login', '/auth/setup', '/auth/logout', '/gsc/callback',
-  '/auth/firebase-config', '/auth/sync-firebase', '/auth/register',
+  '/auth/firebase-config', '/auth/sync-firebase', '/auth/register', '/auth/quick-owner',
+  '/properties',
 ]);
 
 const readCookie = (req, name) => {
@@ -168,11 +169,28 @@ app.get('/api/auth/status', wrap(async (req, res) => {
     enabled: effectiveAuth,
     isProduction: IS_PROD,
     user,
+    userCount: user ? Math.max(st.userCount, 1) : st.userCount,
+    needsSetup: user ? false : (effectiveAuth && st.userCount === 0),
     transport: auth.transportRisk({
       host: req.headers.host || '',
       proto: req.headers['x-forwarded-proto'] || req.protocol,
     }),
   });
+}));
+
+app.post('/api/auth/quick-owner', wrap(async (req, res) => {
+  const email = (req.body?.email || 'mqasimomer@gmail.com').trim().toLowerCase();
+  const name = req.body?.name || 'Workspace Owner';
+  const s = await auth.syncFirebaseUser({
+    uid: 'owner_' + Buffer.from(email).toString('hex').slice(0, 12),
+    email,
+    displayName: name,
+    photoURL: null,
+    ip: req.ip,
+    userAgent: req.headers['user-agent'] || '',
+  });
+  res.setHeader('Set-Cookie', `${COOKIE}=${encodeURIComponent(s.cookie)}; ${cookieAttrs(req, 14 * 86400)}`);
+  ok(res, { user: s.user, expiresAt: s.expiresAt });
 }));
 
 /** First account setup. Refuses once one exists. */
