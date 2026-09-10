@@ -206,13 +206,16 @@ app.post('/api/auth/logout', wrap(async (req, res) => {
 }));
 
 app.get('/api/auth/firebase-config', wrap(async (req, res) => {
-  const apiKey = process.env.FIREBASE_API_KEY || process.env.GOOGLE_API_KEY || '';
-  const projectId = process.env.FIREBASE_PROJECT_ID || 'seo-workbench-prod';
-  const authDomain = process.env.FIREBASE_AUTH_DOMAIN || `${projectId}.firebaseapp.com`;
-  const appId = process.env.FIREBASE_APP_ID || '';
+  const apiKey = process.env.FIREBASE_API_KEY || 'AIzaSyD0smxu4BCJbaaOEh45Ji4cQwS9ab9Qrvg';
+  const projectId = process.env.FIREBASE_PROJECT_ID || 'seo-workbench-75e02';
+  const authDomain = process.env.FIREBASE_AUTH_DOMAIN || 'seo-workbench-75e02.firebaseapp.com';
+  const appId = process.env.FIREBASE_APP_ID || '1:279663228984:web:94c55f241b6cb83093cecd';
+  const storageBucket = process.env.FIREBASE_STORAGE_BUCKET || 'seo-workbench-75e02.firebasestorage.app';
+  const messagingSenderId = process.env.FIREBASE_MESSAGING_SENDER_ID || '279663228984';
+  const measurementId = process.env.FIREBASE_MEASUREMENT_ID || 'G-XZGLPJWWWE';
   ok(res, {
     configured: Boolean(apiKey),
-    config: { apiKey, authDomain, projectId, appId },
+    config: { apiKey, authDomain, projectId, appId, storageBucket, messagingSenderId, measurementId },
   });
 }));
 

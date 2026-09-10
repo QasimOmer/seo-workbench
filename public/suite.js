@@ -1722,7 +1722,16 @@ async function initFirebase() {
 
     const app = initializeApp(res.config);
     const auth = getAuth(app);
-    fbInstance = { auth, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged };
+    let analytics = null;
+    if (res.config?.measurementId) {
+      try {
+        const { getAnalytics, isSupported } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-analytics.js');
+        if (await isSupported()) {
+          analytics = getAnalytics(app);
+        }
+      } catch {}
+    }
+    fbInstance = { app, auth, analytics, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged };
 
     onAuthStateChanged(auth, async (fbUser) => {
       if (fbUser) {
