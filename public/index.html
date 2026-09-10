@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SEO Workbench</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,400..800&family=Inter:wght@400;500;550;600;650&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="gatecover" id="authGate" hidden>
+  <div class="authbox">
+    <div class="authhd"><span class="mark" aria-hidden="true"></span><b>SEO Workbench</b></div>
+    <div id="authBody"></div>
+  </div>
+</div>
+
+<div class="portal">
+
+<aside class="rail" id="rail">
+  <div class="brand">
+    <span class="mark" aria-hidden="true"></span>
+    <span class="bname">SEO Workbench</span>
+  </div>
+
+  <nav class="nav" aria-label="Sections">
+    <button class="navitem" data-panel="overview" data-purpose="Where this site stands, and what to fix first" aria-current="true"><span class="ni-label">Where it stands</span></button>
+
+    <p class="navgroup" title="What is wrong, in the order it must be fixed">Diagnose &mdash; in order</p>
+    <div id="ladderNav" class="ladder-nav"></div>
+
+    <p class="navgroup" title="Look closer at one thing">Look closer</p>
+    <button class="navitem" data-panel="pages" data-purpose="One page at a time: review it, and check its intent against the live SERP"><span class="ni-label">Pages &amp; intent</span><span class="ni-n" id="nPages">0</span></button>
+    <button class="navitem" data-panel="console" data-purpose="What Google actually recorded: clicks, impressions, position"><span class="ni-label">Search Console</span><span class="ni-dot" id="dotGsc"></span></button>
+    <button class="navitem" data-panel="speed" data-purpose="Core Web Vitals from real users, and lab numbers for debugging"><span class="ni-label">Speed</span><span class="ni-dot" id="dotPsi"></span></button>
+    <button class="navitem" data-panel="security" data-purpose="Security headers, graded. A compromised site loses rankings"><span class="ni-label">Security</span><span class="ni-n" id="nSec">&mdash;</span></button>
+    <button class="navitem" data-panel="logs" data-purpose="Your server log: what Googlebot actually requested, and what it wasted"><span class="ni-label">Server logs</span></button>
+    <button class="navitem" data-panel="competitors" data-purpose="Crawl a competitor and compare how the sites are built"><span class="ni-label">Competitors</span><span class="ni-n" id="nComp2">0</span></button>
+    <button class="navitem" data-panel="clarity" data-purpose="Rage clicks, dead clicks and script errors from real sessions"><span class="ni-label">Behaviour</span><span class="ni-dot" id="dotClarity"></span></button>
+    <button class="navitem" data-panel="aivis" data-purpose="Do the AI models name you, cite you, and what share of voice do you hold"><span class="ni-label">AI visibility</span><span class="ni-n" id="nAivis">—</span></button>
+    <button class="navitem" data-panel="rank" data-purpose="Whether you appear at all for the queries you care about"><span class="ni-label">Visibility</span></button>
+
+    <p class="navgroup" title="Decide what should exist">Plan</p>
+    <button class="navitem" data-panel="newsite" data-purpose="For a site that does not exist yet: architecture, URLs, technical spec"><span class="ni-label">Plan a new site</span><span class="ni-n" id="nPhase">7</span></button>
+    <button class="navitem" data-panel="demand" data-purpose="What people search for, and which clusters you could win"><span class="ni-label">Keywords</span></button>
+    <button class="navitem" data-panel="program" data-purpose="Findings turned into dated weeks at your real capacity"><span class="ni-label">Work plan</span><span class="ni-n" id="nWeeks">&mdash;</span></button>
+
+    <p class="navgroup" title="Produce the things that fix it">Make</p>
+    <button class="navitem" data-panel="build" data-purpose="Titles, schema, redirects, robots, briefs &mdash; ready to paste"><span class="ni-label">Build</span></button>
+    <button class="navitem" data-panel="social" data-purpose="Platform-sized posts with copy and artwork"><span class="ni-label">Social posts</span></button>
+    <button class="navitem" data-panel="campaigns" data-purpose="Tie changes to a number, with a baseline recorded first"><span class="ni-label">Campaigns</span><span class="ni-n" id="nCamp">0</span></button>
+
+    <p class="navgroup" title="Get it out, and watch it">Ship &amp; watch</p>
+    <button class="navitem" data-panel="ship" data-purpose="Pre-launch checks, snapshot diffs, and exports including Azure DevOps"><span class="ni-label">Ship</span></button>
+    <button class="navitem" data-panel="monitors" data-purpose="Re-crawl on a schedule and report only what changed"><span class="ni-label">Monitoring</span><span class="ni-n" id="nMon">0</span></button>
+  </nav>
+
+  <div class="railfoot">
+    <button class="navitem sm" data-panel="crawl" data-purpose="Start URL, page cap, JavaScript rendering"><span class="ni-label">Crawl settings</span></button>
+    <button class="navitem sm" data-panel="brand" data-purpose="Voice, services, audience &mdash; read by everything that writes"><span class="ni-label">Brand context</span><span class="ni-n" id="nBrand">0%</span></button>
+    <button class="navitem sm" data-panel="setup" data-purpose="API keys and text models"><span class="ni-label">Setup &amp; keys</span><span class="ni-n" id="nKeys">0</span></button>
+    <button class="navitem sm" data-panel="people" data-purpose="Who owns which finding, and how loaded each person is"><span class="ni-label">People</span><span class="ni-n" id="nPeople">0</span></button>
+    <button class="navitem sm" data-panel="health" data-purpose="What is reachable from this machine right now"><span class="ni-label">System check</span><span class="ni-dot" id="dotHealth"></span></button>
+  </div>
+</aside>
+
+<header class="topbar">
+  <button class="railtoggle" id="railToggle" aria-label="Show navigation" aria-expanded="false"><span></span><span></span><span></span></button>
+
+  <div class="prop" id="propWrap">
+    <button class="propbtn" id="propBtn" aria-haspopup="listbox" aria-expanded="false">
+      <span class="propname" id="propName">No property yet</span>
+      <span class="propmeta" id="propMeta">Crawl a site to begin</span>
+    </button>
+    <div class="propmenu" id="propMenu" role="listbox" hidden></div>
+  </div>
+
+  <div class="tbactions">
+    <span class="freshness" id="freshness"></span>
+    <button class="kbd" id="cmdkOpen" title="Jump to any section">Ctrl K</button>
+    <div class="themeswitch" id="themeSwitch"></div>
+    <div id="whoami"></div>
+    <button class="go" id="runCrawlTop">Run crawl</button>
+  </div>
+</header>
+
+<main class="work" id="work">
+
+<section class="panel" id="p-overview">
+  <div id="overviewOut"></div>
+</section>
+
+<section class="panel" id="p-crawl" hidden>
+  <h2 class="sec">Crawl settings</h2>
+  <p class="lede">Set the cap above your site's real page count. A crawl that stops early cannot assess orphans or duplicates — it reports what it reached, not what exists, so those checks switch themselves off rather than guess.</p>
+
+  <div class="form">
+    <div class="field grow"><label for="crawlUrl">Start URL</label><input id="crawlUrl" type="url" placeholder="https://example.com/" autocomplete="url"></div>
+    <div class="field"><label for="maxPages">Max pages</label><input id="maxPages" type="number" value="500" min="1" max="25000" style="width:110px"></div>
+    <div class="field"><label for="ua">User agent</label><select id="ua"><option value="googlebot">Googlebot smartphone</option><option value="desktop">Desktop Chrome</option><option value="workbench">SEO Workbench</option></select></div>
+    <div class="field"><label>&nbsp;</label><button class="go" id="runCrawl">Run crawl</button></div>
+  </div>
+  <div class="form" style="margin-top:-8px">
+    <label class="check"><input type="checkbox" id="respectRobots" checked> Respect robots.txt</label>
+    <label class="check"><input type="checkbox" id="includeSubdomains"> Include subdomains</label>
+    <label class="check"><input type="checkbox" id="renderJs"> Render JavaScript <span class="src" id="renderNote">checking…</span></label>
+    <div class="field grow"><label for="moneyUrls">Money pages, one per line — scopes the commercially important findings</label><textarea id="moneyUrls" style="min-height:0;height:38px" placeholder="https://example.com/services/"></textarea></div>
+  </div>
+
+  <div id="crawlMsg"></div>
+  <div id="crawlProgress"></div>
+</section>
+
+<section class="panel" id="p-ladder" hidden>
+  <div id="ladderOut"></div>
+</section>
+
+<section class="panel" id="p-pages" hidden>
+  <h2 class="sec">Pages</h2>
+  <p class="lede">Every URL the crawl reached. Pick one for the single-page review: eligibility, canonical, intent, on-page, internal links, structured data, rendering — in that order, leading with the highest-impact change.</p>
+  <div class="chipset" id="pageFilters"></div>
+  <div id="pagesOut"><div class="empty">Run a crawl first.</div></div>
+  <div id="reviewOut"></div>
+  <h3 class="sub">Intent match — stage 3</h3>
+  <p class="note">The one stage nothing can infer from your page alone. Tell it the query a page targets and it reads the live SERP in your Chrome, then compares what Google rewards against what your page is.</p>
+  <div class="form">
+    <div class="field grow"><label for="inPage">Page</label><select id="inPage"></select></div>
+    <div class="field grow"><label for="inQuery">Query this page targets</label><input id="inQuery" placeholder="how to fit running shoes"></div>
+    <div class="field"><label for="inGl">Country</label><select id="inGl"><option value="us">US</option><option value="gb">UK</option><option value="ca">CA</option><option value="au">AU</option><option value="pk">PK</option></select></div>
+    <div class="field"><label>&nbsp;</label><button class="go" id="inGo">Read the SERP</button></div>
+  </div>
+  <div id="intentOut"></div>
+</section>
+
+<section class="panel" id="p-demand" hidden>
+  <h2 class="sec">Keyword research</h2>
+  <p class="lede">This runs before everything else. Without a keyword-to-URL map, "intent mismatch", "cannibalisation" and "content gap" are assertions rather than findings.</p>
+  <div class="note"><b>What the free tier can't give you.</b> No search volume — nothing free returns it. Breadth counts how many independent autocomplete probes surfaced a phrase, which is a popularity hint, not volume. There's no live SERP scrape either, so clustering by SERP similarity — the correct method — isn't available here. Cluster by tokens as a first pass, then sample real SERPs before committing a page to a cluster. With Search Console connected, the landing-page clustering in that section is the stronger proxy: it's Google's own choice of page.</div>
+
+  <div class="form">
+    <div class="field grow"><label for="seed">Seed term</label><input id="seed" placeholder="running shoes for flat feet"></div>
+    <div class="field"><label for="gl">Country</label><select id="gl"><option value="us">US</option><option value="gb">UK</option><option value="ca">CA</option><option value="au">AU</option><option value="pk">PK</option></select></div>
+    <div class="field"><label>&nbsp;</label><button class="go" id="runExpand">Expand</button></div>
+  </div>
+  <div id="demandOut"></div>
+</section>
+
+<section class="panel" id="p-console" hidden>
+  <h2 class="sec">Search Console</h2>
+  <p class="lede">The difference between observed and inferred. Without this connected the tool infers indexation from a crawl; with it, you read what Google actually decided.</p>
+  <div class="note"><b>Two ways in.</b> The quick one needs no setup: in Search Console open <b>Performance</b>, set your date range, click <b>Export → Download CSV</b>, unzip it, and drop the files below. That is Google's own data with no OAuth, no Cloud project, no keys. The OAuth route below adds live refresh and URL Inspection if you want them later.</div>
+  <div class="form">
+    <div class="field grow"><label for="gscFiles">Search Console CSV export — Queries.csv, Pages.csv, Dates.csv…</label><input type="file" id="gscFiles" accept=".csv,text/csv" multiple></div>
+    <div class="field"><label>&nbsp;</label><button class="go" id="gscImport">Import</button></div>
+  </div>
+  <div id="gscCsvOut"></div>
+  <h3 class="sub">Or connect the API</h3>
+  <div id="gscAuth"></div>
+  <div id="gscBody" hidden>
+    <div class="form">
+      <div class="field grow"><label for="gscSite">Property</label><select id="gscSite"></select></div>
+      <div class="field"><label for="gscDays">Window</label><select id="gscDays"><option value="28">Last 28 days</option><option value="90" selected>Last 90 days</option><option value="180">Last 6 months</option><option value="480">Last 16 months</option></select></div>
+    </div>
+    <div class="chipset">
+      <button class="chip" data-gsc="performance">Performance</button>
+      <button class="chip" data-gsc="cannibalisation">Cannibalisation</button>
+      <button class="chip" data-gsc="striking">Striking distance</button>
+      <button class="chip" data-gsc="ctr">CTR gaps</button>
+      <button class="chip" data-gsc="clusters">Query clusters</button>
+      <button class="chip" data-gsc="sitemaps">Sitemaps</button>
+      <button class="chip" data-gsc="triage">Traffic drop triage</button>
+      <button class="chip" data-gsc="inspect">URL Inspection</button>
+    </div>
+    <div id="gscOut"></div>
+  </div>
+</section>
+
+<section class="panel" id="p-speed" hidden>
+  <h2 class="sec">Performance</h2>
+  <p class="lede">Field data from CrUX is the signal. Lighthouse lab scores are a debugging tool — useful for finding the cause, not for judging whether there's a problem. Both are shown, kept apart on purpose.</p>
+  <div class="note">Core Web Vitals sit at rung seven. Real user value, small ranking tiebreaker, and never the answer to "why doesn't this rank". Fix eligibility, indexation and intent first.</div>
+  <div class="form">
+    <div class="field grow"><label for="psiUrl">URL</label><input id="psiUrl" type="url" placeholder="https://example.com/page/"></div>
+    <div class="field"><label for="psiStrategy">Device</label><select id="psiStrategy"><option value="mobile">Mobile</option><option value="desktop">Desktop</option></select></div>
+    <div class="field"><label>&nbsp;</label><button class="go" id="runPsi">Test</button></div>
+    <div class="field"><label>&nbsp;</label><button class="go ghost" id="runPsiBatch">Test top 10 crawled</button></div>
+  </div>
+  <div id="psiOut"></div>
+</section>
+
+<section class="panel" id="p-build" hidden>
+  <h2 class="sec">Build</h2>
+  <p class="lede">The execution half. Everything here produces something you can ship — markup, redirect rules, link plans, briefs.</p>
+  <div class="chipset" id="buildTools">
+    <button class="chip" data-build="titles" aria-pressed="true">Titles &amp; metas</button>
+    <button class="chip" data-build="schema">Structured data</button>
+    <button class="chip" data-build="links">Internal links</button>
+    <button class="chip" data-build="redirects">Redirect map</button>
+    <button class="chip" data-build="robots">robots.txt &amp; sitemap</button>
+    <button class="chip" data-build="brief">Content brief</button>
+    <button class="chip" data-build="summarize">Summarise text</button>
+  </div>
+  <div id="buildOut"></div>
+</section>
+
+<section class="panel" id="p-ship" hidden>
+  <h2 class="sec">Ship</h2>
+  <p class="lede">Pre-launch checks, crawl-to-crawl comparison, and exports. Migrations are the most common cause of catastrophic traffic loss in the field, so this is the section that earns its keep.</p>
+
+  <h3 class="sub">Pre-launch check</h3>
+  <div class="form">
+    <div class="field grow"><label for="stagingUrl">Staging URL, to confirm it's still blocked</label><input id="stagingUrl" type="url" placeholder="https://staging.example.com/"></div>
+    <div class="field"><label>&nbsp;</label><button class="go" id="runPrelaunch">Run check</button></div>
+  </div>
+  <div id="prelaunchOut"></div>
+
+  <h3 class="sub">Compare against a snapshot</h3>
+  <p class="note">Save a crawl before a deploy, then re-crawl and diff. This is the technical-regression step of traffic-drop triage, in executable form.</p>
+  <div class="form">
+    <div class="field grow"><label for="snapName">Save current crawl as</label><input id="snapName" placeholder="pre-deploy-2026-09-04"></div>
+    <div class="field"><label>&nbsp;</label><button class="go ghost" id="saveSnap">Save snapshot</button></div>
+    <div class="field grow"><label for="snapPick">Compare against</label><select id="snapPick"></select></div>
+    <div class="field"><label>&nbsp;</label><button class="go" id="runCompare">Compare</button></div>
+  </div>
+  <div id="compareOut"></div>
+
+  <h3 class="sub">Export</h3>
+  <div class="copybar">
+    <button class="go ghost tiny" data-export="findings">Findings CSV</button>
+    <button class="go ghost tiny" data-export="crawl">Full crawl CSV</button>
+    <button class="go ghost tiny" data-export="links">Link graph CSV</button>
+    <button class="go ghost tiny" data-export="azure">Azure DevOps work items CSV</button>
+    <button class="go ghost tiny" data-export="json">Everything as JSON</button>
+  </div>
+  <p class="note">The Azure DevOps export writes one Task per finding, with severity mapped to Priority, owner and phase as tags, and testable acceptance criteria in the description. Recommendations that can't be accepted don't ship.</p>
+</section>
+
+
+<section class="panel" id="p-brand" hidden>
+  <h2 class="sec">Brand context</h2>
+  <p class="lede">Everything the AI writes reads from here. Fill it in once and the drafts stop sounding like drafts — leave it empty and the model invents a voice, which is why most AI copy reads the way it does.</p>
+  <div id="brandOut"></div>
+</section>
+
+<section class="panel" id="p-program" hidden>
+  <h2 class="sec">The plan</h2>
+  <p class="lede">Your findings, sequenced. The order is the priority ladder — effort only breaks ties inside a stage, never across them, so this won't quietly reorder itself around what's easy.</p>
+  <div id="programOut"></div>
+</section>
+
+<section class="panel" id="p-social" hidden>
+  <h2 class="sec">Social posts</h2>
+  <p class="lede">Copy and artwork for each platform, at the right dimensions. The background is generated; the type is composed in real fonts, because image models can't spell.</p>
+  <div id="socialOut"></div>
+</section>
+
+<section class="panel" id="p-campaigns" hidden>
+  <h2 class="sec">Campaigns</h2>
+  <p class="lede">A campaign records what you changed, when, and what the numbers were beforehand. Without that baseline you can't tell later whether it worked — you can only argue about it.</p>
+  <div id="campOut"></div>
+</section>
+
+
+<section class="panel" id="p-health" hidden>
+  <h2 class="sec">System check</h2>
+  <p class="lede">The tool runs on free, keyless services. They're generous but not guaranteed, so this tells you what's actually reachable from this machine right now — the only place the answer is true.</p>
+  <div class="copybar"><button class="go" id="healthRun">Run the check</button></div>
+  <div id="healthOut"></div>
+</section>
+
+<section class="panel" id="p-rank" hidden>
+  <h2 class="sec">Visibility</h2>
+  <p class="lede">Where your pages turn up for the queries you care about.</p>
+  <div class="note"><b>Read this before you trust the numbers.</b> No free service returns Google positions. If you connect Search Console you get real Google data for queries you already appear on, and that's always the better source. Failing that, this checks DuckDuckGo — a different index. Treat it as "am I visible at all", never as a Google rank.</div>
+  <div class="form">
+    <div class="field grow"><label for="rkQueries">Queries, one per line</label><textarea id="rkQueries" rows="5" placeholder="best running shoes for flat feet&#10;flat feet running shoe guide"></textarea></div>
+  </div>
+  <div class="form" style="margin-top:-8px">
+    <div class="field grow"><label for="rkDomain">Domain</label><input id="rkDomain" placeholder="example.com"></div>
+    <div class="field"><label for="rkEngine">Engine</label><select id="rkEngine"></select></div>
+    <div class="field"><label>&nbsp;</label><button class="go" id="rkGo">Check visibility</button></div>
+  </div>
+  <div id="rankOut"></div>
+</section>
+
+
+<section class="panel" id="p-security" hidden>
+  <h2 class="sec">Security headers</h2>
+  <p class="lede">Graded separately from the SEO ladder, because it is a separate discipline. Only two of these headers touch search directly — but a compromised site loses rankings in a way no amount of on-page work recovers.</p>
+  <div id="securityOut"><div class="empty">Run a crawl first. This reads response headers the crawl already collected, so it needs no extra requests.</div></div>
+</section>
+
+
+<section class="panel" id="p-monitors" hidden>
+  <h2 class="sec">Monitoring</h2>
+  <p class="lede">Re-crawl on a schedule and report only what changed. Alerts fire on regressions, never on known state — a monitor that reports problems you've already accepted gets muted, and a muted monitor is worse than none.</p>
+  <div id="monitorOut"></div>
+</section>
+
+<section class="panel" id="p-setup" hidden>
+  <h2 class="sec">Setup &amp; keys</h2>
+  <p class="lede">Everything works without any of these. Each one only adds something specific, named below. Keys are checked against the real API before being accepted — a key that saves but doesn't work is worse than none, because you debug it a week later.</p>
+  <div id="setupOut"></div>
+</section>
+
+<section class="panel" id="p-newsite" hidden>
+  <h2 class="sec">Plan a new site</h2>
+  <p class="lede">There is nothing to audit before a site exists, so the diagnostic half of this tool does not apply yet. What replaces it is the set of decisions that are cheap now and expensive after launch — most audit work on established sites is undoing choices someone made in week one.</p>
+  <div class="chipset" id="phaseTabs"></div>
+  <div id="newsiteOut"></div>
+</section>
+
+<section class="panel" id="p-people" hidden>
+  <h2 class="sec">People</h2>
+  <p class="lede">Who owns which finding, and how much is on each of them. Work with no owner does not ship — that's the most common reason an audit produces no change.</p>
+  <div class="msg"><b>This is assignment, not login.</b> The tool runs on your own machine with no TLS, so a password screen here would protect nothing — anyone with the machine has the data files regardless. Rather than imply a guarantee that isn't there, this tracks ownership and load, which is the part that actually affects whether work gets done.</div>
+  <div id="peopleOut"></div>
+</section>
+
+<section class="panel" id="p-clarity" hidden>
+  <h2 class="sec">Behaviour</h2>
+  <p class="lede">What people actually did on the page. A rage-click cluster or a dead click explains a conversion problem that rankings and Core Web Vitals never will.</p>
+  <div id="clarityOut"></div>
+</section>
+
+<section class="panel" id="p-competitors" hidden>
+  <h2 class="sec">Competitors</h2>
+  <p class="lede">Crawl a competitor and compare how the two sites are built. Their HTML is public, so this needs no subscription and no API.</p>
+  <div class="msg"><b>What this can and cannot tell you.</b> It compares architecture, schema, content depth, internal linking and trust signals — the parts you can copy or beat. It cannot tell you their traffic, backlinks or rankings; those need a clickstream panel and a web-scale link graph, which is what an Ahrefs or Semrush subscription actually buys.</div>
+  <div id="compOut"></div>
+</section>
+
+<section class="panel" id="p-logs" hidden>
+  <h2 class="sec">Server logs</h2>
+  <p class="lede">Your server's own record of what Googlebot actually did. A crawl proves a page is reachable; only the log proves Google bothered to fetch it.</p>
+  <div class="msg"><b>Nothing leaves your machine.</b> The file is parsed in this process and never stored. Combined (Apache/nginx), IIS W3C, and JSON lines from a CDN are all detected automatically.</div>
+  <div class="form">
+    <div class="field grow"><label for="lgFile">Access log file</label><input type="file" id="lgFile" accept=".log,.txt,.json,text/plain"></div>
+    <div class="field"><label for="lgBot">Bot</label><select id="lgBot"></select></div>
+    <div class="field"><label>&nbsp;</label><button class="go" id="lgGo">Analyse</button></div>
+  </div>
+  <p class="note">Where to find it: cPanel → Raw Access Logs; WP Engine → Logs; Cloudflare → Logpush; nginx → <code>/var/log/nginx/access.log</code>. A week is plenty; a month is better. Crawl the site first — the comparison between what Google requested and what exists is where most of the value is.</p>
+  <div id="logsOut"></div>
+</section>
+
+<section class="panel" id="p-aivis" hidden>
+  <h2 class="sec">AI visibility</h2>
+  <p class="lede">Runs your prompts through every reachable model and measures whether you are <b>named</b>, whether your domain is <b>cited</b>, and how the share of voice divides between you and everyone else the model mentions.</p>
+  <div id="aivisOut"></div>
+</section>
+</main>
+</div>
+
+<div class="cmdk" id="cmdk" hidden>
+  <div class="cmdk-box">
+    <input id="cmdkInput" placeholder="Jump to a section, or type what you want to do" autocomplete="off" spellcheck="false">
+    <div class="cmdk-list" id="cmdkList"></div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+<script src="suite.js"></script>
+</body>
+</html>
