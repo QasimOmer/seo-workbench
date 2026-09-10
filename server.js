@@ -70,6 +70,7 @@ const COOKIE = 'sw_session';
    locks everyone out permanently, including whoever set it up. */
 const OPEN_PATHS = new Set([
   '/auth/status', '/auth/login', '/auth/setup', '/auth/logout', '/gsc/callback',
+  '/auth/firebase-config', '/auth/sync-firebase', '/auth/register',
 ]);
 
 const readCookie = (req, name) => {
@@ -160,6 +161,48 @@ app.post('/api/auth/logout', wrap(async (req, res) => {
   await auth.logout(readCookie(req, COOKIE));
   res.setHeader('Set-Cookie', `${COOKIE}=; ${cookieAttrs(req, 0)}`);
   ok(res, { signedOut: true });
+}));
+
+app.get('/api/auth/firebase-config', wrap(async (req, res) => {
+  const apiKey = process.env.FIREBASE_API_KEY || process.env.GOOGLE_API_KEY || '';
+  const projectId = process.env.FIREBASE_PROJECT_ID || 'seo-workbench-prod';
+  const authDomain = process.env.FIREBASE_AUTH_DOMAIN || `${projectId}.firebaseapp.com`;
+  const appId = process.env.FIREBASE_APP_ID || '';
+  ok(res, {
+    configured: Boolean(apiKey),
+    config: { apiKey, authDomain, projectId, appId },
+  });
+}));
+
+app.post('/api/auth/register', wrap(async (req, res) => {
+  const { username, password, name } = req.body;
+  const st = await auth.status();
+  if (!username || !password) return fail(res, 'Username and password are required.');
+  let user;
+  if (!st.userCount) {
+    user = await auth.createUser({ username, password, name });
+    await auth.setEnabled(true);
+  } else {
+    user = await auth.createUser({ username, password, name, role: 'member' }, { byRole: 'owner' });
+  }
+  const s = await auth.login({ username, password, ip: req.ip, userAgent: req.headers['user-agent'] || '' });
+  res.setHeader('Set-Cookie', `${COOKIE}=${encodeURIComponent(s.cookie)}; ${cookieAttrs(req, 14 * 86400)}`);
+  ok(res, { user: s.user, expiresAt: s.expiresAt });
+}));
+
+app.post('/api/auth/sync-firebase', wrap(async (req, res) => {
+  const { uid, email, displayName, photoURL } = req.body;
+  if (!uid) return fail(res, 'Firebase UID is required.');
+  const user = {
+    id: uid,
+    username: (email ? email.split('@')[0] : displayName || uid).toLowerCase().replace(/[^a-z0-9._-]/g, '_').slice(0, 32),
+    name: displayName || email?.split('@')[0] || 'Member',
+    email: email || null,
+    photoURL: photoURL || null,
+    role: 'member',
+    provider: 'firebase',
+  };
+  ok(res, { user });
 }));
 
 app.post('/api/auth/users', wrap(async (req, res) => {

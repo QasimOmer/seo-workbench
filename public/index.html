@@ -18,6 +18,23 @@
   </div>
 </div>
 
+<dialog id="authModal" class="auth-dialog" closedby="any" aria-labelledby="authDialogTitle">
+  <div class="auth-dialog-card">
+    <div class="auth-dialog-hd">
+      <div class="auth-dialog-title" id="authDialogTitle">
+        <span class="mark" aria-hidden="true"></span>
+        <b>Account &amp; Access</b>
+      </div>
+      <button class="auth-close-btn" id="authModalClose" aria-label="Close dialog">&times;</button>
+    </div>
+    <div class="auth-tabs" role="tablist">
+      <button class="auth-tab" id="tabSignIn" role="tab" aria-selected="true">Sign In</button>
+      <button class="auth-tab" id="tabSignUp" role="tab" aria-selected="false">Create Account</button>
+    </div>
+    <div class="auth-dialog-body" id="authModalBody"></div>
+  </div>
+</dialog>
+
 <div class="portal">
 
 <aside class="rail" id="rail">
