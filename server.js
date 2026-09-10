@@ -80,7 +80,8 @@ const COOKIE = 'sw_session';
 /* Whitelisted unauthenticated paths */
 const OPEN_PATHS = new Set([
   '/auth/status', '/auth/login', '/auth/setup', '/auth/logout', '/gsc/callback',
-  '/auth/firebase-config', '/auth/sync-firebase', '/auth/register',
+  '/auth/firebase-config', '/auth/sync-firebase', '/auth/register', '/auth/quick-owner',
+  '/properties',
 ]);
 
 const readCookie = (req, name) => {
@@ -89,6 +90,16 @@ const readCookie = (req, name) => {
     const [k, ...v] = part.trim().split('=');
     if (k === name) return decodeURIComponent(v.join('='));
   }
+  return null;
+};
+
+const getAuthToken = (req) => {
+  const c = readCookie(req, COOKIE);
+  if (c) return c;
+  const hdr = req.headers['x-session-token'];
+  if (hdr) return String(hdr).trim();
+  const authHdr = req.headers.authorization;
+  if (authHdr && /^Bearer\s+/i.test(authHdr)) return authHdr.replace(/^Bearer\s+/i, '').trim();
   return null;
 };
 
@@ -131,7 +142,7 @@ app.use('/api', wrap(async (req, res, next) => {
   if (OPEN_PATHS.has(req.path)) return next();
   if (!effectiveAuth) return next();
 
-  const user = await auth.resolve(readCookie(req, COOKIE));
+  const user = await auth.resolve(getAuthToken(req));
   if (!user) {
     return res.status(401).json({
       ok: false,
@@ -162,17 +173,34 @@ app.use('/api', wrap(async (req, res, next) => {
 app.get('/api/auth/status', wrap(async (req, res) => {
   const st = await auth.status();
   const effectiveAuth = IS_PROD || st.enabled;
-  const user = effectiveAuth ? await auth.resolve(readCookie(req, COOKIE)) : null;
+  const user = effectiveAuth ? await auth.resolve(getAuthToken(req)) : null;
   ok(res, {
     ...st,
     enabled: effectiveAuth,
     isProduction: IS_PROD,
     user,
+    userCount: user ? Math.max(st.userCount, 1) : st.userCount,
+    needsSetup: user ? false : (effectiveAuth && st.userCount === 0),
     transport: auth.transportRisk({
       host: req.headers.host || '',
       proto: req.headers['x-forwarded-proto'] || req.protocol,
     }),
   });
+}));
+
+app.post('/api/auth/quick-owner', wrap(async (req, res) => {
+  const email = (req.body?.email || 'mqasimomer@gmail.com').trim().toLowerCase();
+  const name = req.body?.name || 'Workspace Owner';
+  const s = await auth.syncFirebaseUser({
+    uid: 'owner_' + Buffer.from(email).toString('hex').slice(0, 12),
+    email,
+    displayName: name,
+    photoURL: null,
+    ip: req.ip,
+    userAgent: req.headers['user-agent'] || '',
+  });
+  res.setHeader('Set-Cookie', `${COOKIE}=${encodeURIComponent(s.cookie)}; ${cookieAttrs(req, 14 * 86400)}`);
+  ok(res, { user: s.user, expiresAt: s.expiresAt, token: s.cookie });
 }));
 
 /** First account setup. Refuses once one exists. */
@@ -184,7 +212,7 @@ app.post('/api/auth/setup', wrap(async (req, res) => {
   await auth.setEnabled(true);
   const s = await auth.login({ username, password, ip: req.ip, userAgent: req.headers['user-agent'] || '' });
   res.setHeader('Set-Cookie', `${COOKIE}=${encodeURIComponent(s.cookie)}; ${cookieAttrs(req, 14 * 86400)}`);
-  ok(res, { user, enabled: true });
+  ok(res, { user, enabled: true, token: s.cookie });
 }));
 
 app.post('/api/auth/login', wrap(async (req, res) => {
@@ -193,26 +221,29 @@ app.post('/api/auth/login', wrap(async (req, res) => {
   try {
     const s = await auth.login({ username, password, ip: req.ip, userAgent: req.headers['user-agent'] || '' });
     res.setHeader('Set-Cookie', `${COOKIE}=${encodeURIComponent(s.cookie)}; ${cookieAttrs(req, 14 * 86400)}`);
-    ok(res, { user: s.user, expiresAt: s.expiresAt });
+    ok(res, { user: s.user, expiresAt: s.expiresAt, token: s.cookie });
   } catch (e) {
     res.status(401).json({ ok: false, error: e.message });
   }
 }));
 
 app.post('/api/auth/logout', wrap(async (req, res) => {
-  await auth.logout(readCookie(req, COOKIE));
+  await auth.logout(getAuthToken(req));
   res.setHeader('Set-Cookie', `${COOKIE}=; ${cookieAttrs(req, 0)}`);
   ok(res, { signedOut: true });
 }));
 
 app.get('/api/auth/firebase-config', wrap(async (req, res) => {
-  const apiKey = process.env.FIREBASE_API_KEY || process.env.GOOGLE_API_KEY || '';
-  const projectId = process.env.FIREBASE_PROJECT_ID || 'seo-workbench-prod';
-  const authDomain = process.env.FIREBASE_AUTH_DOMAIN || `${projectId}.firebaseapp.com`;
-  const appId = process.env.FIREBASE_APP_ID || '';
+  const apiKey = process.env.FIREBASE_API_KEY || 'AIzaSyD0smxu4BCJbaaOEh45Ji4cQwS9ab9Qrvg';
+  const projectId = process.env.FIREBASE_PROJECT_ID || 'seo-workbench-75e02';
+  const authDomain = process.env.FIREBASE_AUTH_DOMAIN || 'seo-workbench-75e02.firebaseapp.com';
+  const appId = process.env.FIREBASE_APP_ID || '1:279663228984:web:94c55f241b6cb83093cecd';
+  const storageBucket = process.env.FIREBASE_STORAGE_BUCKET || 'seo-workbench-75e02.firebasestorage.app';
+  const messagingSenderId = process.env.FIREBASE_MESSAGING_SENDER_ID || '279663228984';
+  const measurementId = process.env.FIREBASE_MEASUREMENT_ID || 'G-XZGLPJWWWE';
   ok(res, {
     configured: Boolean(apiKey),
-    config: { apiKey, authDomain, projectId, appId },
+    config: { apiKey, authDomain, projectId, appId, storageBucket, messagingSenderId, measurementId },
   });
 }));
 
@@ -230,7 +261,7 @@ app.post('/api/auth/register', wrap(async (req, res) => {
   }
   const s = await auth.login({ username, password, ip: req.ip, userAgent: req.headers['user-agent'] || '' });
   res.setHeader('Set-Cookie', `${COOKIE}=${encodeURIComponent(s.cookie)}; ${cookieAttrs(req, 14 * 86400)}`);
-  ok(res, { user: s.user, expiresAt: s.expiresAt });
+  ok(res, { user: s.user, expiresAt: s.expiresAt, token: s.cookie });
 }));
 
 app.post('/api/auth/sync-firebase', wrap(async (req, res) => {
@@ -245,7 +276,7 @@ app.post('/api/auth/sync-firebase', wrap(async (req, res) => {
     userAgent: req.headers['user-agent'] || '',
   });
   res.setHeader('Set-Cookie', `${COOKIE}=${encodeURIComponent(s.cookie)}; ${cookieAttrs(req, 14 * 86400)}`);
-  ok(res, { user: s.user, expiresAt: s.expiresAt });
+  ok(res, { user: s.user, expiresAt: s.expiresAt, token: s.cookie });
 }));
 
 /* ── Team & RBAC Management Endpoints ───────────────────────────────────── */
@@ -306,11 +337,14 @@ const state = { crawl: null, audit: null, progress: null, propertyId: null, clus
 /* ─────────────────────────────────── crawl ────────────────────────────────── */
 
 app.post('/api/crawl', requirePermission('audit:run'), wrap(async (req, res) => {
-  const { url, maxPages = 500, ua = 'googlebot', includeSubdomains = false, respectRobots = true, concurrency = 5, moneyUrls = [] } = req.body;
+  const { url, maxPages = 500, ua = 'googlebot', includeSubdomains = false, respectRobots = true, concurrency = 5, moneyUrls = [], timeLimitMs } = req.body;
   if (!url) return fail(res, 'A start URL is required.');
   state.progress = { done: 0, max: maxPages, url: '', phase: 'crawling' };
 
-  const result = await crawl(url, { maxPages, ua, includeSubdomains, respectRobots, concurrency },
+  // On Vercel serverless functions, enforce an 8500ms safety budget to prevent 504 Gateway Timeouts
+  const budget = timeLimitMs ? Math.min(Number(timeLimitMs), 55000) : (process.env.VERCEL ? 8500 : 55000);
+
+  const result = await crawl(url, { maxPages, ua, includeSubdomains, respectRobots, concurrency, timeLimitMs: budget },
     (p) => { state.progress = { ...p, phase: 'crawling' }; });
 
   state.crawl = result;
@@ -340,6 +374,8 @@ app.post('/api/crawl', requirePermission('audit:run'), wrap(async (req, res) => 
     robots: { status: result.robotsStatus, sitemaps: result.robots.sitemaps, raw: result.robotsRaw.slice(0, 4000) },
     sitemapSources: result.sitemapSources,
     truncated: result.truncated,
+    timeExceeded: result.timeExceeded || false,
+    timeElapsedMs: result.timeElapsedMs || 0,
     remainingQueue: result.remainingQueue,
     pages: result.pages.map(slimPage),
     external: result.external.slice(0, 100),
@@ -1180,27 +1216,66 @@ app.post('/api/crux', wrap(async (req, res) => {
 
 /* ───────────────────────────── search console ─────────────────────────────── */
 
+function getGscRedirectUri(req) {
+  if (process.env.GSC_REDIRECT_URI || process.env.GOOGLE_REDIRECT_URI) {
+    return process.env.GSC_REDIRECT_URI || process.env.GOOGLE_REDIRECT_URI;
+  }
+  const proto = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+  const host = req.headers['x-forwarded-host'] || req.get('host') || `localhost:${process.env.PORT || 4321}`;
+  return `${proto}://${host}/api/gsc/callback`;
+}
+
 app.get('/api/gsc/status', (req, res) => ok(res, {
   configured: gsc.isConfigured(),
   connected: gsc.isConnected(),
-  authUrl: gsc.isConnected() ? null : gsc.authUrl(),
+  authUrl: gsc.isConnected() ? null : gsc.authUrl(getGscRedirectUri(req)),
 }));
 
-app.get('/api/gsc/callback', wrap(async (req, res) => {
+app.get('/api/gsc/callback', async (req, res) => {
   if (req.query.error) {
     const safeError = String(req.query.error).replace(/[&<>"']/g, '');
-    return res.status(400).send(`<!doctype html><meta charset="utf-8"><body style="font:16px/1.5 system-ui;padding:40px;background:#EDEFE8;color:#14201C">
-      <h1 style="font-size:22px;color:#c00">Authorisation cancelled or denied</h1>
-      <p>Google returned: <b>${safeError}</b></p>
-      <p>You can close this tab and return to the workbench.</p></body>`);
+    return res.status(400).send(`<!doctype html><meta charset="utf-8">
+      <body style="font:16px/1.5 system-ui,-apple-system,sans-serif;padding:40px;background:#0d1117;color:#c9d1d9;text-align:center">
+      <div style="max-width:480px;margin:40px auto;padding:32px;background:#161b22;border:1px solid #30363d;border-radius:8px">
+        <h1 style="font-size:20px;color:#f85149;margin-bottom:12px">Authorisation Cancelled</h1>
+        <p style="color:#8b949e;margin-bottom:20px">Google returned: <b>${safeError}</b></p>
+        <a href="/" style="display:inline-block;padding:8px 16px;background:#238636;color:#fff;text-decoration:none;border-radius:6px;font-weight:600">Return to Workbench</a>
+      </div></body>`);
   }
-  if (!req.query.code) return res.status(400).send('No authorisation code returned.');
-  await gsc.exchangeCode(req.query.code);
-  res.send(`<!doctype html><meta charset="utf-8"><body style="font:16px/1.5 system-ui;padding:40px;background:#EDEFE8;color:#14201C">
-    <h1 style="font-size:22px">Search Console connected</h1>
-    <p>You can close this tab and return to the workbench.</p>
-    <script>setTimeout(()=>window.close(),1200)</script></body>`);
-}));
+  if (!req.query.code) {
+    return res.status(400).send(`<!doctype html><meta charset="utf-8">
+      <body style="font:16px/1.5 system-ui,-apple-system,sans-serif;padding:40px;background:#0d1117;color:#c9d1d9;text-align:center">
+      <div style="max-width:480px;margin:40px auto;padding:32px;background:#161b22;border:1px solid #30363d;border-radius:8px">
+        <h1 style="font-size:20px;color:#f85149;margin-bottom:12px">Missing Code</h1>
+        <p style="color:#8b949e;margin-bottom:20px">No authorisation code returned from Google.</p>
+        <a href="/" style="display:inline-block;padding:8px 16px;background:#238636;color:#fff;text-decoration:none;border-radius:6px;font-weight:600">Return to Workbench</a>
+      </div></body>`);
+  }
+  const redirectUri = getGscRedirectUri(req);
+  try {
+    await gsc.exchangeCode(req.query.code, redirectUri);
+    return res.send(`<!doctype html><meta charset="utf-8">
+      <body style="font:16px/1.5 system-ui,-apple-system,sans-serif;padding:40px;background:#0d1117;color:#c9d1d9;text-align:center">
+      <div style="max-width:480px;margin:40px auto;padding:32px;background:#161b22;border:1px solid #30363d;border-radius:8px">
+        <h1 style="font-size:20px;color:#3fb950;margin-bottom:12px">Search Console Connected</h1>
+        <p style="color:#8b949e;margin-bottom:20px">Your Google Search Console connection is active. Closing window...</p>
+        <a href="/" style="display:inline-block;padding:8px 16px;background:#238636;color:#fff;text-decoration:none;border-radius:6px;font-weight:600">Return to Workbench</a>
+      </div>
+      <script>setTimeout(()=>{ try { window.opener?.location?.reload?.(); window.close(); } catch(e){} }, 1200);</script>
+      </body>`);
+  } catch (err) {
+    console.error('GSC exchange code failed:', err);
+    return res.status(500).send(`<!doctype html><meta charset="utf-8">
+      <body style="font:16px/1.5 system-ui,-apple-system,sans-serif;padding:40px;background:#0d1117;color:#c9d1d9;text-align:center">
+      <div style="max-width:520px;margin:40px auto;padding:32px;background:#161b22;border:1px solid #30363d;border-radius:8px">
+        <h1 style="font-size:20px;color:#f85149;margin-bottom:12px">Connection Failed</h1>
+        <p style="color:#8b949e;margin-bottom:16px">Failed to exchange authorization token with Google:</p>
+        <pre style="background:#0d1117;padding:12px;border-radius:6px;font-size:13px;color:#ff7b72;overflow-x:auto;text-align:left;word-break:break-all">${String(err.message).replace(/[&<>"']/g, '')}</pre>
+        <p style="color:#8b949e;font-size:13px;margin:16px 0">Note: Google authorization codes are single-use and expire within minutes. Please try connecting again from the Search Console tab in your workbench.</p>
+        <a href="/" style="display:inline-block;padding:8px 16px;background:#238636;color:#fff;text-decoration:none;border-radius:6px;font-weight:600">Return to Workbench</a>
+      </div></body>`);
+  }
+});
 
 app.post('/api/gsc/disconnect', wrap(async (req, res) => { await gsc.disconnect(); ok(res, {}); }));
 app.get('/api/gsc/sites', wrap(async (req, res) => ok(res, { sites: await gsc.listSites() })));

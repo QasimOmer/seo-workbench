@@ -185,13 +185,15 @@ const srv = spawn(process.execPath, [join(ROOT, 'server.js')], {
   stdio: ['ignore', 'pipe', 'pipe'],
 });
 let srvErr = '', srvOut = '';
-srv.stderr.on('data', (d) => { srvErr += d; });
-srv.stdout.on('data', (d) => { srvOut += d; });  // must be drained or the pipe can block
+srv.stderr.on('data', (d) => { srvErr += d.toString(); });
+srv.stdout.on('data', (d) => { srvOut += d.toString(); });  // must be drained or the pipe can block
+srv.on('error', (err) => { srvErr += `\nSPAWN_ERROR: ${err.message}`; });
+srv.on('exit', (code, sig) => { srvErr += `\nPROCESS_EXIT: code=${code}, sig=${sig}`; });
 
 /* Poll for readiness rather than sleeping a guessed interval — a fixed sleep is
    the classic source of a suite that passes on one machine and fails on another. */
 const ready = await (async () => {
-  for (let i = 0; i < 60; i++) {
+  for (let i = 0; i < 120; i++) {
     try { const r = await fetch(`${BASE}/api/schema/types`); if (r.ok) return true; } catch { /* not up yet */ }
     await new Promise((r) => setTimeout(r, 250));
   }

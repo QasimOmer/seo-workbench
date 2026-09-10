@@ -26,10 +26,15 @@ const LADDER = [
 async function api(path, opts = {}) {
   const res = await fetch(path, {
     method: opts.body ? 'POST' : 'GET',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) },
     body: opts.body ? JSON.stringify(opts.body) : undefined,
   });
-  const json = await res.json().catch(() => ({ ok: false, error: `Bad response (${res.status})` }));
+  const json = await res.json().catch(() => {
+    if (res.status === 504) {
+      return { ok: false, error: 'The crawl exceeded Vercel’s execution timeout. Try auditing with fewer pages (e.g. 10–25) or targeting a specific section.' };
+    }
+    return { ok: false, error: `Bad response (${res.status})` };
+  });
   if (!json.ok) throw new Error(json.error || 'Request failed');
   return json;
 }
@@ -208,7 +213,11 @@ const ago = (iso) => {
 
 $('#runCrawlTop').addEventListener('click', () => {
   if (window.can && !window.can('audit:run')) {
-    alert('Viewer accounts have read-only access. An Editor, Admin, or Owner role is required to start an audit.');
+    if (!window.currentUser) {
+      if (typeof openAuthModal === 'function') openAuthModal('signin');
+      return alert('Please sign in or create an account to start an audit.');
+    }
+    alert(`Access Denied: Your account (${window.currentUser.roleLabel || window.currentUser.role}) has read-only access. An Editor, Admin, or Owner role is required to start an audit.`);
     return;
   }
   if ($('#crawlUrl').value.trim()) return void $('#runCrawl').click();
@@ -221,7 +230,11 @@ $$('button.go').forEach((b) => { b.dataset.label = b.textContent; });
 
 $('#runCrawl').addEventListener('click', async () => {
   if (window.can && !window.can('audit:run')) {
-    return msg('#crawlMsg', 'Access Denied: Your account has Viewer role (read-only). An Editor, Admin, or Owner role is required to run audits.', 'err');
+    if (!window.currentUser) {
+      if (typeof openAuthModal === 'function') openAuthModal('signin');
+      return msg('#crawlMsg', 'Please sign in or create an account to run audits.', 'err');
+    }
+    return msg('#crawlMsg', `Access Denied: Your account has ${window.currentUser.roleLabel || window.currentUser.role} role (read-only). An Editor, Admin, or Owner role is required to run audits.`, 'err');
   }
   const url = $('#crawlUrl').value.trim();
   if (!url) return msg('#crawlMsg', 'Enter a start URL.', 'err');
@@ -257,6 +270,10 @@ $('#runCrawl').addEventListener('click', async () => {
     updateLadderCounts();
     await loadProperties();
     showPanel('overview');
+    if (data.timeExceeded) {
+      const elapsedSec = (data.timeElapsedMs / 1000).toFixed(1);
+      msg('#crawlMsg', `⚡ Fast Serverless Crawl: Audited ${data.pages.length} pages in ${elapsedSec}s to prevent timeout. Full scorecard and ladder diagnostics are ready.`, 'ok');
+    }
   } catch (e) {
     msg('#crawlMsg', e.message, 'err');
   } finally {

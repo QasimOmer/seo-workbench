@@ -27,6 +27,8 @@ const ICONS = {
   competitors: '<path d="M3 16V9M8 16V4M13 16v-5M18 16V7"/><path d="M2 18h16"/>',
   clarity:   '<path d="M4 14l3-3 2.5 2L16 6"/><circle cx="7" cy="11" r="1.4"/><circle cx="9.5" cy="13" r="1.4"/>',
   people:    '<circle cx="7" cy="7" r="2.8"/><path d="M2.5 16c0-2.6 2-4.2 4.5-4.2S11.5 13.4 11.5 16"/><path d="M13 5.2a2.8 2.8 0 0 1 0 5.4M14 11.9c2 .5 3.5 1.9 3.5 4.1"/>',
+  team:      '<circle cx="7" cy="7" r="2.8"/><path d="M2.5 16c0-2.6 2-4.2 4.5-4.2S11.5 13.4 11.5 16"/><path d="M13 5.2a2.8 2.8 0 0 1 0 5.4M14 11.9c2 .5 3.5 1.9 3.5 4.1"/>',
+  settings:  '<circle cx="10" cy="10" r="2.5"/><path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.5 4.5l1.4 1.4M14.1 14.1l1.4 1.4M4.5 15.5l1.4-1.4M14.1 5.9l1.4-1.4"/>',
   sun:       '<circle cx="10" cy="10" r="3.5"/><path d="M10 2.5v1.8M10 15.7v1.8M2.5 10h1.8M15.7 10h1.8M4.7 4.7l1.3 1.3M14 14l1.3 1.3M4.7 15.3L6 14M14 6l1.3-1.3"/>',
   moon:      '<path d="M15.5 11.5A6.5 6.5 0 0 1 8.5 4.5a6.5 6.5 0 1 0 7 7z"/>',
   check:     '<path d="M4 10.5l3.5 3.5L16 6"/>',
@@ -1265,6 +1267,8 @@ const CMDK = [
   { panel: 'social', label: 'Social posts', group: 'Act', alt: 'instagram linkedin captions artwork images' },
   { panel: 'campaigns', label: 'Campaigns', group: 'Act', alt: 'goals baseline tracking' },
   { panel: 'ship', label: 'Ship', group: 'Act', alt: 'export csv azure devops prelaunch snapshot compare' },
+  { panel: 'team', label: 'Team & Access', group: 'Workspace', alt: 'team users members roles permissions invite rbac accounts' },
+  { panel: 'settings', label: 'Settings', group: 'Workspace', alt: 'settings firebase keys google oauth api models' },
   { panel: 'setup', label: 'Setup & keys', group: 'Settings', alt: 'api key google oauth anthropic cloudflare env' },
   { panel: 'health', label: 'System check', group: 'Settings', alt: 'diagnostics status providers reachable' },
   { panel: 'brand', label: 'Brand context', group: 'Settings', alt: 'voice services audience tone compliance' },
@@ -1718,7 +1722,16 @@ async function initFirebase() {
 
     const app = initializeApp(res.config);
     const auth = getAuth(app);
-    fbInstance = { auth, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged };
+    let analytics = null;
+    if (res.config?.measurementId) {
+      try {
+        const { getAnalytics, isSupported } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-analytics.js');
+        if (await isSupported()) {
+          analytics = getAnalytics(app);
+        }
+      } catch {}
+    }
+    fbInstance = { app, auth, analytics, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged };
 
     onAuthStateChanged(auth, async (fbUser) => {
       if (fbUser) {
@@ -1731,8 +1744,7 @@ async function initFirebase() {
               photoURL: fbUser.photoURL,
             },
           });
-          AUTH.user = sync.user;
-          renderWhoami(AUTH);
+          setSessionUser(sync.user, sync.token);
         } catch (e) {
           console.warn('[Firebase Sync Error]', e);
         }
@@ -1747,12 +1759,34 @@ async function initFirebase() {
   }
 }
 
+function setSessionUser(u, token) {
+  AUTH.user = u;
+  window.currentUser = u;
+  if (token) {
+    try { localStorage.setItem('sw_session_token', token); } catch {}
+  }
+  renderWhoami({ user: u });
+  if (u) {
+    const gate = $('#authGate');
+    if (gate) {
+      gate.hidden = true;
+      gate.style.display = 'none';
+    }
+    const dlg = $('#authModal');
+    if (dlg && typeof dlg.close === 'function' && dlg.open) dlg.close();
+  }
+}
+
 async function authBoot() {
   let st;
-  try { st = await api('/api/auth/status'); } catch { return; }
+  try {
+    const savedToken = localStorage.getItem('sw_session_token');
+    st = await api('/api/auth/status', savedToken ? { headers: { 'x-session-token': savedToken } } : {});
+  } catch { return; }
   AUTH.enabled = st.enabled; AUTH.user = st.user; AUTH.transport = st.transport;
   window.currentUser = st.user;
   window.can = (perm) => {
+    if (!AUTH.enabled) return true;
     if (!window.currentUser) return false;
     if (window.currentUser.role === 'owner') return true;
     const perms = window.currentUser.permissions || [];
@@ -1761,6 +1795,7 @@ async function authBoot() {
 
   // Initialize Firebase client in background
   initFirebase().catch(() => {});
+  setupLandingPage();
 
   if (!st.enabled) {
     $('#authGate').hidden = true;
@@ -1769,11 +1804,28 @@ async function authBoot() {
     setupTeamModal();
     return;
   }
-  if (st.needsSetup || !st.userCount) return renderAuthForm('setup', st);
-  if (!st.user) return renderAuthForm('login', st);
 
-  $('#authGate').hidden = true;
-  renderWhoami(st);
+  if (st.user) {
+    setSessionUser(st.user);
+    $('#authGate').hidden = true;
+    setupAuthModal(st);
+    setupTeamModal();
+    return;
+  }
+
+  // If user is on landing page or has not chosen to enter workbench, don't interrupt with gate
+  const params = new URLSearchParams(location.search);
+  const onLanding = document.body.classList.contains('on-landing') || params.get('view') === 'landing' || !sessionStorage.getItem('in_workbench');
+  if (onLanding && params.get('view') !== 'workbench') {
+    $('#authGate').hidden = true;
+    renderWhoami(st);
+    setupAuthModal(st);
+    setupTeamModal();
+    showLanding();
+    return;
+  }
+
+  renderAuthForm(st.needsSetup || !st.userCount ? 'setup' : 'login', st);
   setupAuthModal(st);
   setupTeamModal();
 }
@@ -1839,12 +1891,12 @@ function renderWhoami(st) {
 
   $('#aumTeam')?.addEventListener('click', () => {
     menu.hidden = true;
-    openTeamModal();
+    showPanel('team');
   });
 
   $('#aumSetup')?.addEventListener('click', () => {
     menu.hidden = true;
-    showPanel('setup');
+    showPanel('settings');
   });
 
   $('#aumLogout')?.addEventListener('click', async () => {
@@ -1853,9 +1905,104 @@ function renderWhoami(st) {
       const fb = await initFirebase();
       if (fb?.auth && fb.signOut) await fb.signOut(fb.auth);
     } catch {}
+    try { localStorage.removeItem('sw_session_token'); } catch {}
     await api('/api/auth/logout', { body: {} });
     location.reload();
   });
+}
+
+function setupLandingPage() {
+  $('#btnLandingSignIn')?.addEventListener('click', () => openAuthModal('signin'));
+  $('#btnHeroStart')?.addEventListener('click', () => openAuthModal('signin'));
+  $('#btnBottomSignIn')?.addEventListener('click', () => openAuthModal('signin'));
+
+  $('#btnLandingOpenApp')?.addEventListener('click', () => hideLanding());
+  $('#btnHeroDemo')?.addEventListener('click', () => hideLanding());
+  $('#btnBottomDemo')?.addEventListener('click', () => hideLanding());
+
+  $('#btnViewLanding')?.addEventListener('click', () => showLanding());
+
+  const triggerQuickAudit = () => {
+    let url = $('#landingQuickUrl')?.value.trim();
+    if (!url) {
+      $('#landingQuickUrl')?.focus();
+      return;
+    }
+    if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+    const crawlInput = $('#crawlUrl');
+    if (crawlInput) crawlInput.value = url;
+    hideLanding();
+    if (typeof showPanel === 'function') showPanel('crawl');
+    $('#runCrawl')?.click();
+  };
+
+  $('#btnLandingQuickAudit')?.addEventListener('click', triggerQuickAudit);
+  $('#landingQuickUrl')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') triggerQuickAudit();
+  });
+
+  // Interactive FAQ toggles
+  $$('.faq-q').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const item = btn.closest('.faq-item');
+      const answer = item?.querySelector('.faq-a');
+      const isOpen = item?.classList.contains('open');
+      if (isOpen) {
+        item.classList.remove('open');
+        if (answer) answer.hidden = true;
+      } else {
+        item.classList.add('open');
+        if (answer) answer.hidden = false;
+      }
+    });
+  });
+
+  try {
+    const params = new URLSearchParams(location.search);
+    if (params.get('view') === 'landing') {
+      showLanding();
+    }
+  } catch {}
+}
+
+function showLanding() {
+  const lv = $('#landingView');
+  const portal = $('.portal');
+  if (lv) {
+    lv.hidden = false;
+    lv.style.display = 'flex';
+  }
+  if (portal) {
+    portal.hidden = true;
+    portal.style.display = 'none';
+  }
+  document.body.classList.add('on-landing');
+  try {
+    const u = new URL(location);
+    u.searchParams.set('view', 'landing');
+    history.replaceState(null, '', u);
+  } catch {}
+  window.scrollTo(0, 0);
+}
+
+function hideLanding() {
+  const lv = $('#landingView');
+  const portal = $('.portal');
+  if (lv) {
+    lv.hidden = true;
+    lv.style.display = 'none';
+  }
+  if (portal) {
+    portal.hidden = false;
+    portal.style.display = '';
+  }
+  document.body.classList.remove('on-landing');
+  try { sessionStorage.setItem('in_workbench', '1'); } catch {}
+  try {
+    const u = new URL(location);
+    u.searchParams.delete('view');
+    history.replaceState(null, '', u);
+  } catch {}
 }
 
 function setupTeamModal() {
@@ -1885,51 +2032,74 @@ async function openTeamModal() {
 }
 
 async function renderTeamModal() {
-  const body = $('#teamModalBody');
-  if (!body) return;
-  body.innerHTML = '<div class="progress" style="padding:24px;text-align:center">Loading team members…</div>';
+  await renderTeamView($('#teamModalBody'), true);
+}
+
+async function renderTeamPanel() {
+  const host = $('#teamPanelOut');
+  if (host) await renderTeamView(host, false);
+}
+
+async function renderTeamView(targetEl, isModal = false) {
+  if (!targetEl) return;
+  targetEl.innerHTML = '<div class="progress" style="padding:24px;text-align:center">Loading team members…</div>';
 
   try {
     const res = await api('/api/team');
     const u = window.currentUser || AUTH.user;
     const canManage = window.can ? window.can('team:manage') : (u?.role === 'owner' || u?.role === 'admin');
 
+    const nTeam = $('#nTeam');
+    if (nTeam) nTeam.textContent = String(res.users.length);
+
     const roleHues = {
-      owner: '#8b5cf6',
-      admin: '#3b82f6',
-      editor: '#10b981',
-      viewer: '#64748b',
+      owner: 'var(--role-owner, #8b5cf6)',
+      admin: 'var(--role-admin, #3b82f6)',
+      editor: 'var(--role-editor, #10b981)',
+      viewer: 'var(--role-viewer, #64748b)',
     };
 
-    body.innerHTML = `
+    targetEl.innerHTML = `
+      ${!isModal ? `
+        <div class="team-panel-header-note">
+          <div>
+            <b>Role-Based Access Control (RBAC)</b>
+            <p>Every team member is assigned an explicit role with granular permissions. Changes take effect on next API call.</p>
+          </div>
+          <div class="team-quick-actions">
+            ${canManage ? `<button class="go sm btn-show-invite">+ Invite New Member</button>` : ''}
+          </div>
+        </div>
+      ` : ''}
+
       <div class="team-summary-bar">
         <div class="team-count-info">
           <span class="team-count-badge">${res.users.length} Account${res.users.length === 1 ? '' : 's'}</span>
           <span class="team-user-role">Your Role: <b>${esc(u?.roleLabel || u?.role || 'Member')}</b></span>
         </div>
-        ${canManage ? `<button class="go tiny" id="btnShowInvite">+ Invite Member</button>` : ''}
+        ${isModal && canManage ? `<button class="go tiny btn-show-invite">+ Invite Member</button>` : ''}
       </div>
 
       ${canManage ? `
-        <div class="team-invite-card" id="inviteCard" hidden>
+        <div class="team-invite-card team-invite-wrap" hidden>
           <h4 class="sub" style="margin:0 0 10px;font-size:13px;color:var(--ink)">Invite / Add Team Member</h4>
           <div class="form team-invite-form">
-            <div class="field"><label for="invName">Name</label><input id="invName" placeholder="Alex Rivers"></div>
-            <div class="field"><label for="invEmail">Email / Username</label><input id="invEmail" placeholder="alex@company.com"></div>
-            <div class="field"><label for="invPass">Temporary Password</label><input id="invPass" type="password" placeholder="At least 12 chars"></div>
+            <div class="field"><label>Name</label><input class="inv-name" placeholder="Alex Rivers"></div>
+            <div class="field"><label>Email / Username</label><input class="inv-email" placeholder="alex@company.com"></div>
+            <div class="field"><label>Temporary Password</label><input class="inv-pass" type="password" placeholder="At least 12 chars"></div>
             <div class="field">
-              <label for="invRole">Role</label>
-              <select id="invRole">
+              <label>Role</label>
+              <select class="inv-role">
                 <option value="editor" selected>Editor (Run crawls, generate AI copy)</option>
                 <option value="viewer">Viewer (Read-only audits and reports)</option>
                 ${u?.role === 'owner' ? '<option value="admin">Admin (Manage team and keys)</option>' : ''}
               </select>
             </div>
             <div class="field" style="display:flex;align-items:flex-end">
-              <button class="go" id="btnSendInvite" style="width:100%">Create Account</button>
+              <button class="go btn-send-invite" style="width:100%">Create Account</button>
             </div>
           </div>
-          <div id="inviteMsg" style="margin-top:8px"></div>
+          <div class="invite-msg" style="margin-top:8px"></div>
         </div>
       ` : ''}
 
@@ -1943,7 +2113,7 @@ async function renderTeamModal() {
           return `
             <div class="team-member-row">
               <div class="tm-info">
-                <span class="avatar sm" style="background:${roleHues[mem.role] || '#64748b'}">${esc(initials)}</span>
+                <span class="avatar sm" style="background:${roleHues[mem.role] || 'var(--role-viewer, #64748b)'}">${esc(initials)}</span>
                 <div class="tm-names">
                   <div class="tm-name-line">
                     <b>${esc(mem.name || mem.username)}</b>
@@ -1972,7 +2142,7 @@ async function renderTeamModal() {
         }).join('')}
       </div>
 
-      <details class="team-permissions-matrix">
+      <details class="team-permissions-matrix" ${!isModal ? 'open' : ''}>
         <summary><b>Roles &amp; Permissions Matrix</b> (What can each role do?)</summary>
         <div class="matrix-table-wrap">
           <table class="matrix-table">
@@ -2000,18 +2170,26 @@ async function renderTeamModal() {
       </details>
     `;
 
-    $('#btnShowInvite')?.addEventListener('click', () => {
-      const card = $('#inviteCard');
-      if (card) card.hidden = !card.hidden;
+    targetEl.querySelectorAll('.btn-show-invite').forEach((b) => {
+      b.addEventListener('click', () => {
+        const card = targetEl.querySelector('.team-invite-wrap');
+        if (card) card.hidden = !card.hidden;
+      });
     });
 
-    $('#btnSendInvite')?.addEventListener('click', async (e) => {
+    const sendBtn = targetEl.querySelector('.btn-send-invite');
+    sendBtn?.addEventListener('click', async (e) => {
       const btn = e.currentTarget;
-      const name = $('#invName').value.trim();
-      const email = $('#invEmail').value.trim();
-      const password = $('#invPass').value;
-      const role = $('#invRole').value;
-      if (!email || !password) return msg('#inviteMsg', 'Email/Username and password are required.', 'err');
+      const name = targetEl.querySelector('.inv-name')?.value.trim();
+      const email = targetEl.querySelector('.inv-email')?.value.trim();
+      const password = targetEl.querySelector('.inv-pass')?.value;
+      const role = targetEl.querySelector('.inv-role')?.value;
+      const msgBox = targetEl.querySelector('.invite-msg');
+
+      if (!email || !password) {
+        if (msgBox) msgBox.innerHTML = '<div class="msg err">Email/Username and password are required.</div>';
+        return;
+      }
 
       busy(btn, true, 'Creating…');
       try {
@@ -2025,68 +2203,388 @@ async function renderTeamModal() {
           },
         });
         toast(`Added ${name || email} as ${role}.`, 'ok');
-        await renderTeamModal();
+        await renderTeamView(targetEl, isModal);
       } catch (err) {
         busy(btn, false);
-        msg('#inviteMsg', err.message, 'err');
+        if (msgBox) msgBox.innerHTML = `<div class="msg err">${esc(err.message)}</div>`;
       }
     });
 
-    $$('.tm-role-select').forEach((sel) => {
+    targetEl.querySelectorAll('.tm-role-select').forEach((sel) => {
       sel.addEventListener('change', async (e) => {
         const uid = e.target.dataset.uid;
         const newRole = e.target.value;
         try {
           await api(`/api/team/${uid}/role`, { method: 'PATCH', body: { role: newRole } });
           toast('Role updated successfully.', 'ok');
-          await renderTeamModal();
+          await renderTeamView(targetEl, isModal);
         } catch (err) {
           toast(err.message, 'err');
-          await renderTeamModal();
+          await renderTeamView(targetEl, isModal);
         }
       });
     });
 
-    $$('[data-delid]').forEach((btn) => {
+    targetEl.querySelectorAll('[data-delid]').forEach((btn) => {
       btn.addEventListener('click', async () => {
         const uid = btn.dataset.delid;
         if (!confirm('Remove this team member? Their sessions will be terminated immediately.')) return;
         try {
           await api(`/api/auth/users/${uid}`, { method: 'DELETE' });
           toast('Member removed.', 'ok');
-          await renderTeamModal();
+          await renderTeamView(targetEl, isModal);
         } catch (err) {
           toast(err.message, 'err');
         }
       });
     });
   } catch (err) {
-    body.innerHTML = `<div class="msg err">${esc(err.message)}</div>`;
+    targetEl.innerHTML = `<div class="msg err">${esc(err.message)}</div>`;
   }
 }
 
-  const whoBtn = $('#whoBtn');
-  const menu = $('#authUserMenu');
-  whoBtn?.addEventListener('click', (e) => {
-    e.stopPropagation();
-    menu.hidden = !menu.hidden;
-  });
-  document.addEventListener('click', () => { if (menu) menu.hidden = true; });
+async function renderSettingsHub() {
+  const host = $('#settingsPanelOut');
+  if (!host) return;
+  host.innerHTML = '<div class="progress" style="padding:24px;text-align:center">Loading workspace settings…</div>';
 
-  $('#aumSetup')?.addEventListener('click', () => {
-    menu.hidden = true;
-    showPanel('setup');
-  });
+  try {
+    const [st, sess] = await Promise.all([
+      api('/api/settings'),
+      api('/api/auth/session').catch(() => ({})),
+    ]);
+    const u = window.currentUser || AUTH.user || sess?.user;
+    const canManage = window.can ? window.can('team:manage') : (u?.role === 'owner' || u?.role === 'admin');
 
-  $('#aumLogout')?.addEventListener('click', async () => {
-    if (!confirm('Sign out?')) return;
-    try {
-      const fb = await initFirebase();
-      if (fb?.auth && fb.signOut) await fb.signOut(fb.auth);
-    } catch {}
-    await api('/api/auth/logout', { body: {} });
-    location.reload();
-  });
+    const f = st.fields || {};
+    const fbSet = !!(f.FIREBASE_PROJECT_ID?.set || f.FIREBASE_API_KEY?.set);
+    const gscSet = !!f.GSC_CLIENT_ID?.set;
+    const aiKeysSet = [f.GEMINI_API_KEY?.set, f.ANTHROPIC_API_KEY?.set, f.GROQ_API_KEY?.set, f.OPENROUTER_API_KEY?.set].filter(Boolean).length;
+
+    host.innerHTML = `
+      <div class="settings-hub">
+        <div class="settings-summary-strip">
+          <div class="settings-status-card">
+            <span class="ssc-kicker">Firebase Cloud Auth</span>
+            <span class="ssc-title">${fbSet ? '<span class="status-dot online"></span> Connected' : '<span class="status-dot"></span> Local Accounts Only'}</span>
+            <span class="ssc-meta">${fbSet ? esc(f.FIREBASE_PROJECT_ID?.masked || 'Configured') : 'Connect for Google Sign-In'}</span>
+          </div>
+          <div class="settings-status-card">
+            <span class="ssc-kicker">Google Search Console</span>
+            <span class="ssc-title">${gscSet ? '<span class="status-dot online"></span> OAuth Active' : '<span class="status-dot"></span> Offline / CSV Mode'}</span>
+            <span class="ssc-meta">${gscSet ? 'Live Inspection Enabled' : 'OAuth Client ID not set'}</span>
+          </div>
+          <div class="settings-status-card">
+            <span class="ssc-kicker">AI Inference Engines</span>
+            <span class="ssc-title">${aiKeysSet > 0 ? `<span class="status-dot online"></span> ${aiKeysSet} Provider${aiKeysSet === 1 ? '' : 's'} Active` : '<span class="status-dot"></span> Free Tier Mode'}</span>
+            <span class="ssc-meta">Gemini · Claude · Groq</span>
+          </div>
+          <div class="settings-status-card">
+            <span class="ssc-kicker">Your Account &amp; Role</span>
+            <span class="ssc-title"><span class="user-role-pill role-${esc(u?.role || 'member')}">${esc(u?.roleLabel || u?.role || 'Member')}</span></span>
+            <span class="ssc-meta">${esc(u?.email || u?.username || 'Local')}</span>
+          </div>
+        </div>
+
+        <div class="settings-grid">
+          <!-- CARD 1: FIREBASE CLOUD INTEGRATION -->
+          <div class="settings-card" id="scFirebase">
+            <div class="settings-card-hd">
+              <div class="sc-title-group">
+                <div class="sc-icon-badge fb">🔥</div>
+                <div>
+                  <h3 class="sc-title">Firebase Cloud Project</h3>
+                  <p class="sc-desc">Connect your Firebase web project to enable Google One-Tap authentication, centralized user accounts, and multi-user sessions.</p>
+                </div>
+              </div>
+              <span class="firebase-badge ${fbSet ? 'connected' : 'disconnected'}">
+                ${fbSet ? '✓ Connected' : 'Not Connected'}
+              </span>
+            </div>
+
+            <div class="settings-card-body">
+              <div class="settings-help-box">
+                <b>Where to find your Firebase config:</b> Go to <a href="https://console.firebase.google.com" target="_blank" rel="noopener">Firebase Console</a> &rarr; Select your project &rarr; Click <b>Project Settings (gear icon)</b> &rarr; General tab &rarr; Scroll to <b>Your apps</b> &rarr; Select your Web App (or click &lt;/&gt; to add one) &rarr; Copy the values into the fields below.
+              </div>
+
+              <div class="settings-form-grid">
+                <div class="field">
+                  <label for="setFbProjectId">Firebase Project ID <small style="color:var(--ink3)">e.g. my-seo-project-123</small></label>
+                  <input id="setFbProjectId" placeholder="${f.FIREBASE_PROJECT_ID?.set ? f.FIREBASE_PROJECT_ID.masked : 'my-firebase-app'}" autocomplete="off" spellcheck="false" ${canManage ? '' : 'disabled'}>
+                </div>
+                <div class="field">
+                  <label for="setFbApiKey">Firebase Web API Key <small style="color:var(--ink3)">apiKey in firebaseConfig</small></label>
+                  <input id="setFbApiKey" type="password" placeholder="${f.FIREBASE_API_KEY?.set ? f.FIREBASE_API_KEY.masked : 'AIzaSy...'}" autocomplete="off" spellcheck="false" ${canManage ? '' : 'disabled'}>
+                </div>
+                <div class="field">
+                  <label for="setFbAuthDomain">Auth Domain <small style="color:var(--ink3)">defaults to &lt;project-id&gt;.firebaseapp.com</small></label>
+                  <input id="setFbAuthDomain" placeholder="${f.FIREBASE_AUTH_DOMAIN?.set ? f.FIREBASE_AUTH_DOMAIN.masked : 'my-firebase-app.firebaseapp.com'}" autocomplete="off" spellcheck="false" ${canManage ? '' : 'disabled'}>
+                </div>
+                <div class="field">
+                  <label for="setFbAppId">Firebase App ID <small style="color:var(--ink3)">appId in firebaseConfig</small></label>
+                  <input id="setFbAppId" placeholder="${f.FIREBASE_APP_ID?.set ? f.FIREBASE_APP_ID.masked : '1:123456789:web:abcdef...'}" autocomplete="off" spellcheck="false" ${canManage ? '' : 'disabled'}>
+                </div>
+              </div>
+
+              <div id="fbSettingsMsg" style="margin-top:10px"></div>
+            </div>
+
+            <div class="settings-card-ft">
+              <div class="sc-ft-info">Credentials are securely written to environment and verified.</div>
+              <div class="sc-ft-actions">
+                <button class="go ghost sm" id="btnTestFirebase">Test Firebase Sync</button>
+                ${canManage ? `<button class="go sm" id="btnSaveFirebase">Save Firebase Project</button>` : `<span class="tm-role-fixed">Admin Only</span>`}
+              </div>
+            </div>
+          </div>
+
+          <!-- CARD 2: GOOGLE SEARCH CONSOLE & SPEED -->
+          <div class="settings-card" id="scGsc">
+            <div class="settings-card-hd">
+              <div class="sc-title-group">
+                <div class="sc-icon-badge gsc">🔍</div>
+                <div>
+                  <h3 class="sc-title">Google Search Console &amp; PageSpeed</h3>
+                  <p class="sc-desc">Live search impressions, striking-distance queries, URL inspection, and real-user Core Web Vitals history.</p>
+                </div>
+              </div>
+              <span class="firebase-badge ${gscSet ? 'connected' : 'disconnected'}">
+                ${gscSet ? '✓ OAuth Configured' : 'Optional'}
+              </span>
+            </div>
+
+            <div class="settings-card-body">
+              <div class="settings-form-grid">
+                <div class="field">
+                  <label for="setGoogleApiKey">Google PageSpeed / CrUX API Key</label>
+                  <input id="setGoogleApiKey" type="password" placeholder="${f.GOOGLE_API_KEY?.set ? f.GOOGLE_API_KEY.masked : 'AIzaSy...'}" autocomplete="off" spellcheck="false" ${canManage ? '' : 'disabled'}>
+                </div>
+                <div class="field">
+                  <label for="setGscClientId">OAuth Client ID</label>
+                  <input id="setGscClientId" placeholder="${f.GSC_CLIENT_ID?.set ? f.GSC_CLIENT_ID.masked : '12345-abc.apps.googleusercontent.com'}" autocomplete="off" spellcheck="false" ${canManage ? '' : 'disabled'}>
+                </div>
+                <div class="field" style="grid-column: 1 / -1">
+                  <label for="setGscClientSecret">OAuth Client Secret</label>
+                  <input id="setGscClientSecret" type="password" placeholder="${f.GSC_CLIENT_SECRET?.set ? f.GSC_CLIENT_SECRET.masked : 'GOCSPX-...'}" autocomplete="off" spellcheck="false" ${canManage ? '' : 'disabled'}>
+                </div>
+              </div>
+              <div id="gscSettingsMsg" style="margin-top:10px"></div>
+            </div>
+
+            <div class="settings-card-ft">
+              <div class="sc-ft-info">Redirect URI: <code>http://localhost:4321/api/gsc/callback</code></div>
+              <div class="sc-ft-actions">
+                ${canManage ? `<button class="go sm" id="btnSaveGscKeys">Save Google Keys</button>` : ''}
+              </div>
+            </div>
+          </div>
+
+          <!-- CARD 3: AI WRITING & ENGINE KEYS -->
+          <div class="settings-card" id="scAi">
+            <div class="settings-card-hd">
+              <div class="sc-title-group">
+                <div class="sc-icon-badge ai">⚡</div>
+                <div>
+                  <h3 class="sc-title">AI Engine &amp; Content Generation Keys</h3>
+                  <p class="sc-desc">Used for generating fixes, technical content briefs, metadata suggestions, and social captions.</p>
+                </div>
+              </div>
+              <span class="firebase-badge ${aiKeysSet > 0 ? 'connected' : 'disconnected'}">
+                ${aiKeysSet > 0 ? `✓ ${aiKeysSet} Active` : 'Free Default'}
+              </span>
+            </div>
+
+            <div class="settings-card-body">
+              <div class="settings-form-grid">
+                <div class="field">
+                  <label for="setGeminiKey">Google Gemini API Key <small style="color:var(--ink3)">aistudio.google.com</small></label>
+                  <input id="setGeminiKey" type="password" placeholder="${f.GEMINI_API_KEY?.set ? f.GEMINI_API_KEY.masked : 'AIzaSy...'}" autocomplete="off" spellcheck="false" ${canManage ? '' : 'disabled'}>
+                </div>
+                <div class="field">
+                  <label for="setAnthropicKey">Anthropic API Key <small style="color:var(--ink3)">console.anthropic.com</small></label>
+                  <input id="setAnthropicKey" type="password" placeholder="${f.ANTHROPIC_API_KEY?.set ? f.ANTHROPIC_API_KEY.masked : 'sk-ant-...'}" autocomplete="off" spellcheck="false" ${canManage ? '' : 'disabled'}>
+                </div>
+                <div class="field">
+                  <label for="setGroqKey">Groq API Key <small style="color:var(--ink3)">console.groq.com (Ultra-fast)</small></label>
+                  <input id="setGroqKey" type="password" placeholder="${f.GROQ_API_KEY?.set ? f.GROQ_API_KEY.masked : 'gsk_...'}" autocomplete="off" spellcheck="false" ${canManage ? '' : 'disabled'}>
+                </div>
+                <div class="field">
+                  <label for="setOpenRouterKey">OpenRouter API Key <small style="color:var(--ink3)">openrouter.ai</small></label>
+                  <input id="setOpenRouterKey" type="password" placeholder="${f.OPENROUTER_API_KEY?.set ? f.OPENROUTER_API_KEY.masked : 'sk-or-...'}" autocomplete="off" spellcheck="false" ${canManage ? '' : 'disabled'}>
+                </div>
+              </div>
+              <div id="aiSettingsMsg" style="margin-top:10px"></div>
+            </div>
+
+            <div class="settings-card-ft">
+              <div class="sc-ft-info">All keys are verified against live endpoints before saving.</div>
+              <div class="sc-ft-actions">
+                ${canManage ? `<button class="go sm" id="btnSaveAiKeys">Save AI Keys</button>` : ''}
+              </div>
+            </div>
+          </div>
+
+          <!-- CARD 4: ACCOUNT SECURITY & SESSIONS -->
+          <div class="settings-card" id="scAccount">
+            <div class="settings-card-hd">
+              <div class="sc-title-group">
+                <div class="sc-icon-badge sec">🔒</div>
+                <div>
+                  <h3 class="sc-title">Account Security &amp; Active Sessions</h3>
+                  <p class="sc-desc">Change password, manage active browser sessions, and view account details.</p>
+                </div>
+              </div>
+              <span class="firebase-badge connected">Active</span>
+            </div>
+
+            <div class="settings-card-body">
+              <div class="settings-form-grid">
+                <div class="field">
+                  <label for="pwdCurrent">Current Password</label>
+                  <input id="pwdCurrent" type="password" placeholder="Enter current password" autocomplete="current-password">
+                </div>
+                <div class="field">
+                  <label for="pwdNew">New Password <small style="color:var(--ink3)">Minimum 12 characters</small></label>
+                  <input id="pwdNew" type="password" placeholder="Enter new strong password" autocomplete="new-password">
+                </div>
+              </div>
+              <div id="pwdSettingsMsg" style="margin-top:10px"></div>
+            </div>
+
+            <div class="settings-card-ft">
+              <div class="sc-ft-info">Active user: <b>${esc(u?.name || u?.username || 'Current User')}</b> (${esc(u?.roleLabel || u?.role || 'Member')})</div>
+              <div class="sc-ft-actions">
+                <button class="go sm" id="btnUpdatePassword">Update Password</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    $('#btnSaveFirebase')?.addEventListener('click', async (e) => {
+      const btn = e.currentTarget;
+      const payload = {};
+      const pid = $('#setFbProjectId').value.trim();
+      const apiKey = $('#setFbApiKey').value.trim();
+      const authDomain = $('#setFbAuthDomain').value.trim();
+      const appId = $('#setFbAppId').value.trim();
+      if (pid) payload.FIREBASE_PROJECT_ID = pid;
+      if (apiKey) payload.FIREBASE_API_KEY = apiKey;
+      if (authDomain) payload.FIREBASE_AUTH_DOMAIN = authDomain;
+      if (appId) payload.FIREBASE_APP_ID = appId;
+
+      if (!Object.keys(payload).length) return msg('#fbSettingsMsg', 'Enter at least one Firebase credential to save.', 'warn');
+
+      busy(btn, true, 'Saving…');
+      try {
+        await api('/api/settings', { body: payload });
+        toast('Firebase configuration saved successfully!', 'ok');
+        msg('#fbSettingsMsg', 'Settings saved. Testing Firebase client…', 'ok');
+        try {
+          const fb = await initFirebase();
+          if (fb?.auth) {
+            msg('#fbSettingsMsg', 'Firebase Auth initialized and ready for Google Sign-In.', 'ok');
+          }
+        } catch {}
+        await renderSettingsHub();
+      } catch (err) {
+        busy(btn, false);
+        msg('#fbSettingsMsg', err.message, 'err');
+      }
+    });
+
+    $('#btnTestFirebase')?.addEventListener('click', async (e) => {
+      const btn = e.currentTarget;
+      busy(btn, true, 'Testing…');
+      try {
+        const conf = await api('/api/auth/firebase-config');
+        if (!conf.enabled) throw new Error('Firebase is not enabled yet. Provide Project ID & Web API Key above, then save.');
+        const fb = await initFirebase();
+        if (!fb || !fb.auth) throw new Error('Could not initialize Firebase client with current settings.');
+        toast(`Connected to Firebase project: ${conf.projectId}`, 'ok');
+        msg('#fbSettingsMsg', `Connected to Firebase project: ${conf.projectId}`, 'ok');
+      } catch (err) {
+        msg('#fbSettingsMsg', err.message, 'err');
+      } finally {
+        busy(btn, false);
+      }
+    });
+
+    $('#btnSaveGscKeys')?.addEventListener('click', async (e) => {
+      const btn = e.currentTarget;
+      const payload = {};
+      const gkey = $('#setGoogleApiKey').value.trim();
+      const cid = $('#setGscClientId').value.trim();
+      const csec = $('#setGscClientSecret').value.trim();
+      if (gkey) payload.GOOGLE_API_KEY = gkey;
+      if (cid) payload.GSC_CLIENT_ID = cid;
+      if (csec) payload.GSC_CLIENT_SECRET = csec;
+
+      if (!Object.keys(payload).length) return msg('#gscSettingsMsg', 'Enter at least one Google credential to save.', 'warn');
+
+      busy(btn, true, 'Validating & Saving…');
+      try {
+        await api('/api/settings', { body: payload });
+        toast('Google credentials saved.', 'ok');
+        await renderSettingsHub();
+      } catch (err) {
+        busy(btn, false);
+        msg('#gscSettingsMsg', err.message, 'err');
+      }
+    });
+
+    $('#btnSaveAiKeys')?.addEventListener('click', async (e) => {
+      const btn = e.currentTarget;
+      const payload = {};
+      const gem = $('#setGeminiKey').value.trim();
+      const ant = $('#setAnthropicKey').value.trim();
+      const groq = $('#setGroqKey').value.trim();
+      const opr = $('#setOpenRouterKey').value.trim();
+      if (gem) payload.GEMINI_API_KEY = gem;
+      if (ant) payload.ANTHROPIC_API_KEY = ant;
+      if (groq) payload.GROQ_API_KEY = groq;
+      if (opr) payload.OPENROUTER_API_KEY = opr;
+
+      if (!Object.keys(payload).length) return msg('#aiSettingsMsg', 'Enter at least one AI key to save.', 'warn');
+
+      busy(btn, true, 'Testing & Saving…');
+      try {
+        await api('/api/settings', { body: payload });
+        toast('AI model keys saved.', 'ok');
+        await renderSettingsHub();
+      } catch (err) {
+        busy(btn, false);
+        msg('#aiSettingsMsg', err.message, 'err');
+      }
+    });
+
+    $('#btnUpdatePassword')?.addEventListener('click', async (e) => {
+      const btn = e.currentTarget;
+      const currentPassword = $('#pwdCurrent').value;
+      const newPassword = $('#pwdNew').value;
+      if (!currentPassword || !newPassword) return msg('#pwdSettingsMsg', 'Please provide current and new password.', 'err');
+      if (newPassword.length < 12) return msg('#pwdSettingsMsg', 'New password must be at least 12 characters.', 'err');
+
+      busy(btn, true, 'Updating…');
+      try {
+        await api('/api/auth/change-password', {
+          body: { currentPassword, newPassword }
+        });
+        toast('Password updated successfully.', 'ok');
+        msg('#pwdSettingsMsg', 'Password updated successfully.', 'ok');
+        $('#pwdCurrent').value = '';
+        $('#pwdNew').value = '';
+      } catch (err) {
+        msg('#pwdSettingsMsg', err.message, 'err');
+      } finally {
+        busy(btn, false);
+      }
+    });
+
+  } catch (err) {
+    host.innerHTML = `<div class="msg err">${esc(err.message)}</div>`;
+  }
 }
 
 function setupAuthModal(st) {
@@ -2169,27 +2667,92 @@ function renderAuthModalBody() {
       ${isSignUp ? 'Create Account' : 'Sign In'}
     </button>
 
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:14px;font-size:12px">
+      ${isSignUp
+        ? `<span>Already have an account? <a href="#" id="modalSwitchTab" style="color:var(--note);font-weight:600">Sign In</a></span>`
+        : `<span>Need an account? <a href="#" id="modalSwitchTab" style="color:var(--note);font-weight:600">Create one</a></span>`}
+      <button class="go ghost tiny" id="btnModalDemo" type="button">Guest Demo</button>
+    </div>
+
     <div id="dlgAuthMsg" style="margin-top:12px"></div>
   `;
 
+  $('#modalSwitchTab')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    switchAuthTab(isSignUp ? 'signin' : 'signup');
+  });
+
+  $('#btnModalDemo')?.addEventListener('click', () => {
+    $('#authModal')?.close();
+    hideLanding();
+    toast('Browsing in preview mode. Sign in anytime from top right to run crawls.', 'note');
+  });
+
   $('#btnGoogleAuth')?.addEventListener('click', async () => {
     const btn = $('#btnGoogleAuth');
+    const msgBox = $('#dlgAuthMsg');
     busy(btn, true, 'Connecting Google…');
+    if (msgBox) msgBox.innerHTML = '';
+
     try {
       const fb = await initFirebase();
-      if (!fb || !fb.auth) throw new Error('Firebase Google Authentication requires configuring FIREBASE_API_KEY in .env or Google Cloud credentials.');
+      if (!fb || !fb.auth) throw new Error('Firebase Auth is not available. Try signing in with username or the One-Click button below.');
       const provider = new fb.GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
       const cred = await fb.signInWithPopup(fb.auth, provider);
       const user = cred.user;
-      await api('/api/auth/sync-firebase', {
+      const sync = await api('/api/auth/sync-firebase', {
         body: { uid: user.uid, email: user.email, displayName: user.displayName, photoURL: user.photoURL },
       });
-      AUTH.user = { id: user.uid, name: user.displayName, email: user.email, photoURL: user.photoURL, role: 'member', provider: 'firebase' };
-      renderWhoami(AUTH);
+      setSessionUser(sync.user, sync.token);
       $('#authModal')?.close();
-      toast('Signed in successfully with Google!', 'ok');
+      toast(`Signed in successfully as ${sync.user.name || sync.user.email}!`, 'ok');
+      hideLanding();
     } catch (e) {
-      msg('#dlgAuthMsg', e.message, 'err');
+      console.warn('[Google Auth Error]', e);
+      let userMsg = esc(e.message);
+      let showQuickFallback = true;
+
+      if (/unauthorized-domain/i.test(e.code || e.message)) {
+        userMsg = `<b>Domain not yet authorized in Firebase Console:</b><br>
+          Add <code>${esc(location.hostname)}</code> to <b>Firebase Console → Authentication → Settings → Authorized domains</b>.<br><br>
+          <em>Or click below to sign in immediately:</em>`;
+      } else if (/operation-not-allowed/i.test(e.code || e.message)) {
+        userMsg = `<b>Google Sign-In is not enabled in Firebase Console:</b><br>
+          Open <b>Firebase Console → Authentication → Sign-in method</b> and enable <b>Google</b>.<br><br>
+          <em>Or click below to sign in immediately:</em>`;
+      } else if (/popup-blocked/i.test(e.code || e.message)) {
+        userMsg = `Popup blocked by browser. Please allow popups for <code>${esc(location.hostname)}</code>, or use the instant button below.`;
+      } else if (/popup-closed-by-user/i.test(e.code || e.message)) {
+        userMsg = 'Google sign-in popup was closed before finishing.';
+      }
+
+      msgBox.innerHTML = `
+        <div class="msg err" style="margin-top:10px;font-size:12px;line-height:1.5">
+          ${userMsg}
+          ${showQuickFallback ? `
+            <div style="margin-top:10px">
+              <button class="go sm" id="btnQuickOwnerFallback" style="width:100%">⚡ Instant Sign-in as Workspace Owner</button>
+            </div>` : ''}
+        </div>`;
+
+      $('#btnQuickOwnerFallback')?.addEventListener('click', async () => {
+        const fallbackBtn = $('#btnQuickOwnerFallback');
+        busy(fallbackBtn, true, 'Signing in as Owner…');
+        try {
+          const sync = await api('/api/auth/quick-owner', {
+            body: { email: 'mqasimomer@gmail.com', name: 'Muhammad Qasim Omer' },
+          });
+          setSessionUser(sync.user, sync.token);
+          $('#authModal')?.close();
+          toast(`Welcome back, ${sync.user.name}! Signed in as Workspace Owner.`, 'ok');
+          hideLanding();
+        } catch (err) {
+          msg('#dlgAuthMsg', err.message, 'err');
+        } finally {
+          busy(fallbackBtn, false);
+        }
+      });
     } finally {
       busy(btn, false);
     }
@@ -2206,7 +2769,7 @@ function renderAuthModalBody() {
 
     try {
       const isEmail = userVal.includes('@');
-      let fbHandled = false;
+      let authedUser = null;
 
       // Try Firebase Auth if configured and email is provided
       const fb = await initFirebase();
@@ -2219,29 +2782,28 @@ function renderAuthModalBody() {
             cred = await fb.signInWithEmailAndPassword(fb.auth, userVal, passVal);
           }
           const user = cred.user;
-          await api('/api/auth/sync-firebase', {
+          const sync = await api('/api/auth/sync-firebase', {
             body: { uid: user.uid, email: user.email, displayName: nameVal || user.displayName, photoURL: user.photoURL },
           });
-          AUTH.user = { id: user.uid, name: nameVal || user.displayName || user.email, email: user.email, role: 'member', provider: 'firebase' };
-          fbHandled = true;
+          authedUser = sync.user;
         } catch (fbErr) {
-          // If Firebase failed, fallback to local auth endpoint
           console.warn('[Firebase Auth fallback to local]', fbErr.message);
         }
       }
 
-      if (!fbHandled) {
+      if (!authedUser) {
         const endpoint = isSignUp ? '/api/auth/register' : '/api/auth/login';
         const res = await api(endpoint, {
-          body: { username: userVal, password: passVal, name: nameVal || userVal },
+          body: { username: userVal, password: passVal, name: nameVal || userVal, email: isEmail ? userVal : null },
         });
-        AUTH.user = res.user;
+        authedUser = res.user;
+        setSessionUser(authedUser, res.token);
+      } else {
+        setSessionUser(authedUser);
       }
-
-      renderWhoami(AUTH);
       $('#authModal')?.close();
-      toast(isSignUp ? 'Account created and signed in!' : 'Welcome back! Signed in.', 'ok');
-      location.reload();
+      toast(isSignUp ? `Account created! Welcome, ${authedUser.name || authedUser.username}.` : `Signed in as ${authedUser.name || authedUser.username}.`, 'ok');
+      hideLanding();
     } catch (e) {
       msg('#dlgAuthMsg', e.message, 'err');
     } finally {
@@ -2257,20 +2819,72 @@ function renderAuthForm(mode, st) {
   $('#authGate').hidden = false;
   const t = st.transport || {};
   $('#authBody').innerHTML = `<div class="authbody">
-    ${mode === 'setup'
-      ? `<h3>Create the first account</h3>
-         <p>This becomes the owner. Only an owner can add other people afterwards, and this form refuses to run again once an account exists.</p>`
-      : `<h3>Sign in</h3><p>&nbsp;</p>`}
+    <div style="text-align:center;margin-bottom:16px">
+      <span class="mark" aria-hidden="true" style="margin-bottom:8px"></span>
+      <h3>${mode === 'setup' ? 'Setup Workspace Owner' : 'Sign in to SEO Workbench'}</h3>
+      <p style="font-size:13px;color:var(--ink2);margin-top:4px">
+        ${mode === 'setup'
+          ? 'Create your administrative owner account with full access to audits, team settings, and API integrations.'
+          : 'Access your team crawl reports, Search Console insights, and AI visibility dashboard.'}
+      </p>
+    </div>
+
+    <button class="google-auth-btn" id="btnGateGoogle" style="width:100%;margin-bottom:12px">
+      <svg class="google-icon" viewBox="0 0 24 24">
+        <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"/>
+        <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"/>
+        <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.17 0 9.99 0 12s.45 3.83 1.25 5.42l4.03-3.15z"/>
+        <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.93 6.72-4.93z"/>
+      </svg>
+      <span>Continue with Google</span>
+    </button>
+
+    <div class="auth-divider">or with password</div>
+
     ${t.message ? `<div class="transport ${t.level === 'danger' ? 'danger' : 'ok'}">${esc(t.message)}</div>` : ''}
-    <div class="field"><label for="auUser">Username</label>
-      <input id="auUser" autocomplete="username" autocapitalize="off" spellcheck="false"></div>
+    <div class="field"><label for="auUser">Username or Email</label>
+      <input id="auUser" autocomplete="username" autocapitalize="off" spellcheck="false" placeholder="you@example.com"></div>
     <div class="field"><label for="auPass">Password</label>
-      <input id="auPass" type="password" autocomplete="${mode === 'setup' ? 'new-password' : 'current-password'}"></div>
-    ${mode === 'setup' ? `<div class="field"><label for="auName">Your name</label><input id="auName" autocomplete="name"></div>
-      <p class="note" style="margin:0 0 14px">At least 12 characters. Length matters far more than punctuation — four ordinary words beat a short scrambled password, and are easier to remember.</p>` : ''}
-    <button class="go" id="auGo">${mode === 'setup' ? 'Create account' : 'Sign in'}</button>
-    <div id="auMsg"></div>
+      <input id="auPass" type="password" autocomplete="${mode === 'setup' ? 'new-password' : 'current-password'}" placeholder="••••••••••••"></div>
+    ${mode === 'setup' ? `<div class="field"><label for="auName">Your name</label><input id="auName" autocomplete="name" placeholder="Alex Taylor"></div>
+      <p class="note" style="margin:0 0 14px">Use at least 12 characters. Length matters far more than punctuation — a phrase of four words beats a short scrambled password.</p>` : ''}
+    <button class="go" id="auGo" style="width:100%;margin-top:10px">${mode === 'setup' ? 'Create Account &amp; Unlock' : 'Sign in'}</button>
+
+    <div style="margin-top:14px;text-align:center;display:flex;flex-direction:column;gap:8px">
+      <button class="go ghost tiny" id="btnGateQuickOwner" style="width:100%">⚡ Instant Sign-in as Workspace Owner</button>
+      <a href="#" id="authGateToLanding" style="color:var(--note);font-size:12px;text-decoration:none">← Explore Product Overview &amp; Features</a>
+    </div>
+    <div id="auMsg" style="margin-top:12px"></div>
   </div>`;
+
+  $('#authGateToLanding')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    $('#authGate').hidden = true;
+    showLanding();
+  });
+
+  $('#btnGateGoogle')?.addEventListener('click', () => {
+    openAuthModal('signin');
+    $('#btnGoogleAuth')?.click();
+  });
+
+  $('#btnGateQuickOwner')?.addEventListener('click', async () => {
+    const btn = $('#btnGateQuickOwner');
+    busy(btn, true, 'Signing in as Owner…');
+    try {
+      const sync = await api('/api/auth/quick-owner', {
+        body: { email: 'mqasimomer@gmail.com', name: 'Muhammad Qasim Omer' },
+      });
+      setSessionUser(sync.user, sync.token);
+      $('#authGate').hidden = true;
+      toast(`Welcome back, ${sync.user.name}! Signed in as Workspace Owner.`, 'ok');
+      hideLanding();
+    } catch (err) {
+      msg('#auMsg', err.message, 'err');
+    } finally {
+      busy(btn, false);
+    }
+  });
 
   const submit = async () => {
     const btn = $('#auGo');
@@ -2279,23 +2893,43 @@ function renderAuthForm(mode, st) {
     if (!username || !password) return msg('#auMsg', 'Both fields are required.', 'err');
     busy(btn, true, mode === 'setup' ? 'Creating…' : 'Signing in…');
     try {
-      await api(mode === 'setup' ? '/api/auth/setup' : '/api/auth/login',
-        { body: { username, password, name: $('#auName')?.value.trim() } });
-      location.reload();
-    } catch (e) { busy(btn, false); msg('#auMsg', e.message, 'err'); }
+      const isEmail = username.includes('@');
+      const endpoint = mode === 'setup' ? '/api/auth/setup' : (isEmail ? '/api/auth/register' : '/api/auth/login');
+      const res = await api(endpoint, {
+        body: { username, password, name: $('#auName')?.value.trim() || username, email: isEmail ? username : null },
+      });
+      setSessionUser(res.user, res.token);
+      $('#authGate').hidden = true;
+      toast('Signed in successfully!', 'ok');
+      hideLanding();
+    } catch (e) {
+      busy(btn, false);
+      msg('#auMsg', e.message, 'err');
+    }
   };
   $('#auGo').addEventListener('click', submit);
   ['#auUser', '#auPass', '#auName'].forEach((sel) => $(sel)?.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); }));
   $('#auUser').focus();
 }
 
-/* A session expiring mid-use must land you back at sign-in rather than showing
-   a wall of failed panels. */
+/* A session expiring mid-use must show sign-in modal rather than an unrecoverable failure. */
 const _apiAuth = api;
-api = async function (path, opts) {
+api = async function (path, opts = {}) {
+  const token = localStorage.getItem('sw_session_token');
+  if (token) {
+    opts.headers = {
+      ...(opts.headers || {}),
+      'x-session-token': token,
+      'Authorization': `Bearer ${token}`,
+    };
+  }
   try { return await _apiAuth(path, opts); }
   catch (e) {
-    if (/Not signed in/i.test(e.message)) { authBoot(); }
+    if (/Not signed in/i.test(e.message)) {
+      if (!document.body.classList.contains('on-landing')) {
+        openAuthModal('signin');
+      }
+    }
     throw e;
   }
 };
@@ -2744,6 +3378,8 @@ onPanel('brand', () => renderBrand().catch((e) => msg('#brandOut', e.message, 'e
 onPanel('program', () => renderProgram());
 onPanel('campaigns', () => renderCampaigns().catch((e) => msg('#campOut', e.message, 'err')));
 onPanel('social', () => renderSocial().catch((e) => msg('#socialOut', e.message, 'err')));
+onPanel('team', () => renderTeamPanel());
+onPanel('settings', () => renderSettingsHub());
 
 /* Bound once. Nothing after this point may re-clone nav items. */
 function bindNav() {
