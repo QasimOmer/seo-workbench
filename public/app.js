@@ -166,6 +166,10 @@ function renderPropMenu() {
   }));
   $$('#propMenu [data-del]').forEach((x) => x.addEventListener('click', async (e) => {
     e.stopPropagation();
+    if (window.can && !window.can('settings:write')) {
+      alert('Access Denied: Your account role does not have permission to delete properties. Admin or Owner role required.');
+      return;
+    }
     const p = state.properties.find((q) => q.id === x.dataset.del);
     if (!confirm(`Remove ${p?.label} from the portal? The saved crawl goes with it.`)) return;
     await fetch(`/api/properties/${x.dataset.del}`, { method: 'DELETE' });
@@ -203,6 +207,10 @@ const ago = (iso) => {
 };
 
 $('#runCrawlTop').addEventListener('click', () => {
+  if (window.can && !window.can('audit:run')) {
+    alert('Viewer accounts have read-only access. An Editor, Admin, or Owner role is required to start an audit.');
+    return;
+  }
   if ($('#crawlUrl').value.trim()) return void $('#runCrawl').click();
   showPanel('crawl'); $('#crawlUrl').focus();
 });
@@ -212,6 +220,9 @@ $$('button.go').forEach((b) => { b.dataset.label = b.textContent; });
 /* ═══════════════════════════════ AUDIT ═══════════════════════════════ */
 
 $('#runCrawl').addEventListener('click', async () => {
+  if (window.can && !window.can('audit:run')) {
+    return msg('#crawlMsg', 'Access Denied: Your account has Viewer role (read-only). An Editor, Admin, or Owner role is required to run audits.', 'err');
+  }
   const url = $('#crawlUrl').value.trim();
   if (!url) return msg('#crawlMsg', 'Enter a start URL.', 'err');
   const btn = $('#runCrawl');

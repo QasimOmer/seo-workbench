@@ -1751,6 +1751,13 @@ async function authBoot() {
   let st;
   try { st = await api('/api/auth/status'); } catch { return; }
   AUTH.enabled = st.enabled; AUTH.user = st.user; AUTH.transport = st.transport;
+  window.currentUser = st.user;
+  window.can = (perm) => {
+    if (!window.currentUser) return false;
+    if (window.currentUser.role === 'owner') return true;
+    const perms = window.currentUser.permissions || [];
+    return perms.includes('*') || perms.includes(perm);
+  };
 
   // Initialize Firebase client in background
   initFirebase().catch(() => {});
@@ -1759,6 +1766,7 @@ async function authBoot() {
     $('#authGate').hidden = true;
     renderWhoami(st);
     setupAuthModal(st);
+    setupTeamModal();
     return;
   }
   if (st.needsSetup || !st.userCount) return renderAuthForm('setup', st);
@@ -1767,6 +1775,7 @@ async function authBoot() {
   $('#authGate').hidden = true;
   renderWhoami(st);
   setupAuthModal(st);
+  setupTeamModal();
 }
 
 function renderWhoami(st) {
@@ -1794,13 +1803,21 @@ function renderWhoami(st) {
       <button class="whoami" id="whoBtn" title="${esc(u.username || u.name)}">
         ${avatarHtml}
         <span class="wn">${esc((u.name || u.username || '').split(' ')[0])}</span>
+        <span class="user-role-badge role-${esc(u.role)}">${esc(u.roleLabel || u.role)}</span>
       </button>
       <div class="auth-user-menu" id="authUserMenu" hidden>
-        <div style="padding:6px 10px;border-bottom:1px solid var(--line-soft);margin-bottom:4px">
-          <b style="display:block;font-size:12.5px;color:var(--ink)">${esc(u.name || u.username)}</b>
-          <span style="display:block;font-size:11px;color:var(--ink3);overflow:hidden;text-overflow:ellipsis">${esc(u.email || u.username)}</span>
-          <span style="display:inline-block;margin-top:4px;font-size:10px;font-family:var(--data);padding:1px 6px;border-radius:8px;background:var(--sunk);color:var(--note)">${u.provider === 'firebase' ? 'Firebase Auth' : 'Local Workspace'}</span>
+        <div style="padding:8px 12px;border-bottom:1px solid var(--line-soft);margin-bottom:4px">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+            <b style="font-size:12.5px;color:var(--ink)">${esc(u.name || u.username)}</b>
+            <span class="user-role-pill role-${esc(u.role)}">${esc(u.roleLabel || u.role)}</span>
+          </div>
+          <span style="display:block;font-size:11px;color:var(--ink3);overflow:hidden;text-overflow:ellipsis;margin-top:2px">${esc(u.email || u.username)}</span>
+          <span style="display:inline-block;margin-top:4px;font-size:10px;font-family:var(--data);padding:1px 6px;border-radius:8px;background:var(--sunk);color:var(--note)">${u.provider === 'firebase' ? 'Firebase Auth' : 'Workspace Account'}</span>
         </div>
+        <button class="aum-item" id="aumTeam">
+          <svg class="i sm" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <span>Team &amp; Roles</span>
+        </button>
         <button class="aum-item" id="aumSetup">
           <svg class="i sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
           <span>Account Settings</span>
@@ -1811,6 +1828,242 @@ function renderWhoami(st) {
         </button>
       </div>
     </div>`;
+
+  const whoBtn = $('#whoBtn');
+  const menu = $('#authUserMenu');
+  whoBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    menu.hidden = !menu.hidden;
+  });
+  document.addEventListener('click', () => { if (menu) menu.hidden = true; });
+
+  $('#aumTeam')?.addEventListener('click', () => {
+    menu.hidden = true;
+    openTeamModal();
+  });
+
+  $('#aumSetup')?.addEventListener('click', () => {
+    menu.hidden = true;
+    showPanel('setup');
+  });
+
+  $('#aumLogout')?.addEventListener('click', async () => {
+    if (!confirm('Sign out?')) return;
+    try {
+      const fb = await initFirebase();
+      if (fb?.auth && fb.signOut) await fb.signOut(fb.auth);
+    } catch {}
+    await api('/api/auth/logout', { body: {} });
+    location.reload();
+  });
+}
+
+function setupTeamModal() {
+  const dlg = $('#teamModal');
+  if (!dlg) return;
+  $('#teamModalClose')?.addEventListener('click', () => dlg.close());
+  if (!('closedBy' in HTMLDialogElement.prototype)) {
+    dlg.addEventListener('click', (event) => {
+      if (event.target !== dlg) return;
+      const rect = dlg.getBoundingClientRect();
+      const isInside = (
+        rect.top <= event.clientY &&
+        event.clientY <= rect.top + rect.height &&
+        rect.left <= event.clientX &&
+        event.clientX <= rect.left + rect.width
+      );
+      if (!isInside) dlg.close();
+    });
+  }
+}
+
+async function openTeamModal() {
+  const dlg = $('#teamModal');
+  if (!dlg) return;
+  if (typeof dlg.showModal === 'function') dlg.showModal(); else dlg.setAttribute('open', '');
+  await renderTeamModal();
+}
+
+async function renderTeamModal() {
+  const body = $('#teamModalBody');
+  if (!body) return;
+  body.innerHTML = '<div class="progress" style="padding:24px;text-align:center">Loading team members…</div>';
+
+  try {
+    const res = await api('/api/team');
+    const u = window.currentUser || AUTH.user;
+    const canManage = window.can ? window.can('team:manage') : (u?.role === 'owner' || u?.role === 'admin');
+
+    const roleHues = {
+      owner: '#8b5cf6',
+      admin: '#3b82f6',
+      editor: '#10b981',
+      viewer: '#64748b',
+    };
+
+    body.innerHTML = `
+      <div class="team-summary-bar">
+        <div class="team-count-info">
+          <span class="team-count-badge">${res.users.length} Account${res.users.length === 1 ? '' : 's'}</span>
+          <span class="team-user-role">Your Role: <b>${esc(u?.roleLabel || u?.role || 'Member')}</b></span>
+        </div>
+        ${canManage ? `<button class="go tiny" id="btnShowInvite">+ Invite Member</button>` : ''}
+      </div>
+
+      ${canManage ? `
+        <div class="team-invite-card" id="inviteCard" hidden>
+          <h4 class="sub" style="margin:0 0 10px;font-size:13px;color:var(--ink)">Invite / Add Team Member</h4>
+          <div class="form team-invite-form">
+            <div class="field"><label for="invName">Name</label><input id="invName" placeholder="Alex Rivers"></div>
+            <div class="field"><label for="invEmail">Email / Username</label><input id="invEmail" placeholder="alex@company.com"></div>
+            <div class="field"><label for="invPass">Temporary Password</label><input id="invPass" type="password" placeholder="At least 12 chars"></div>
+            <div class="field">
+              <label for="invRole">Role</label>
+              <select id="invRole">
+                <option value="editor" selected>Editor (Run crawls, generate AI copy)</option>
+                <option value="viewer">Viewer (Read-only audits and reports)</option>
+                ${u?.role === 'owner' ? '<option value="admin">Admin (Manage team and keys)</option>' : ''}
+              </select>
+            </div>
+            <div class="field" style="display:flex;align-items:flex-end">
+              <button class="go" id="btnSendInvite" style="width:100%">Create Account</button>
+            </div>
+          </div>
+          <div id="inviteMsg" style="margin-top:8px"></div>
+        </div>
+      ` : ''}
+
+      <div class="team-list">
+        ${res.users.map((mem) => {
+          const initials = (mem.name || mem.username || 'U').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+          const isMe = mem.id === u?.id;
+          const isOwner = mem.role === 'owner';
+          const canEditThisUser = canManage && !isOwner && (u?.role === 'owner' || mem.role !== 'admin');
+
+          return `
+            <div class="team-member-row">
+              <div class="tm-info">
+                <span class="avatar sm" style="background:${roleHues[mem.role] || '#64748b'}">${esc(initials)}</span>
+                <div class="tm-names">
+                  <div class="tm-name-line">
+                    <b>${esc(mem.name || mem.username)}</b>
+                    ${isMe ? '<span class="tm-you-tag">You</span>' : ''}
+                    <span class="user-role-pill role-${mem.role}">${esc(mem.roleLabel || mem.role)}</span>
+                  </div>
+                  <div class="tm-meta-line">
+                    <span>${esc(mem.email || mem.username)}</span> ·
+                    <span>${mem.lastLoginAt ? `Active ${ago(mem.lastLoginAt)}` : 'Never signed in'}</span>
+                    ${mem.activeSessions > 0 ? ` · <span class="active-dot" title="${mem.activeSessions} active sessions"></span> ${mem.activeSessions} session${mem.activeSessions === 1 ? '' : 's'}` : ''}
+                  </div>
+                </div>
+              </div>
+              <div class="tm-actions">
+                ${canEditThisUser ? `
+                  <select class="tm-role-select" data-uid="${esc(mem.id)}">
+                    <option value="viewer" ${mem.role === 'viewer' ? 'selected' : ''}>Viewer</option>
+                    <option value="editor" ${mem.role === 'editor' ? 'selected' : ''}>Editor</option>
+                    ${u?.role === 'owner' ? `<option value="admin" ${mem.role === 'admin' ? 'selected' : ''}>Admin</option>` : ''}
+                  </select>
+                  <button class="po-del tm-del-btn" data-delid="${esc(mem.id)}" title="Remove member">×</button>
+                ` : `<span class="tm-role-fixed">${esc(mem.roleLabel || mem.role)}</span>`}
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+
+      <details class="team-permissions-matrix">
+        <summary><b>Roles &amp; Permissions Matrix</b> (What can each role do?)</summary>
+        <div class="matrix-table-wrap">
+          <table class="matrix-table">
+            <thead>
+              <tr>
+                <th>Capability / Action</th>
+                <th>Viewer</th>
+                <th>Editor</th>
+                <th>Admin</th>
+                <th>Owner</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>View Audits, Findings &amp; Reports</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+              <tr><td>View Google Search Console &amp; Speed</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+              <tr><td>Run Site Crawls &amp; Competitor Scans</td><td class="no">✕</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+              <tr><td>Generate AI Content, Briefs &amp; Social Copy</td><td class="no">✕</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+              <tr><td>Edit Brand Context &amp; SEO Targets</td><td class="no">✕</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+              <tr><td>Manage Team Members (Invite / Change Roles)</td><td class="no">✕</td><td class="no">✕</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+              <tr><td>Configure API Keys &amp; System Integrations</td><td class="no">✕</td><td class="no">✕</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+              <tr><td>Manage Properties &amp; Full Organization Control</td><td class="no">✕</td><td class="no">✕</td><td class="no">✕</td><td class="yes">✓</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </details>
+    `;
+
+    $('#btnShowInvite')?.addEventListener('click', () => {
+      const card = $('#inviteCard');
+      if (card) card.hidden = !card.hidden;
+    });
+
+    $('#btnSendInvite')?.addEventListener('click', async (e) => {
+      const btn = e.currentTarget;
+      const name = $('#invName').value.trim();
+      const email = $('#invEmail').value.trim();
+      const password = $('#invPass').value;
+      const role = $('#invRole').value;
+      if (!email || !password) return msg('#inviteMsg', 'Email/Username and password are required.', 'err');
+
+      busy(btn, true, 'Creating…');
+      try {
+        await api('/api/team/invite', {
+          body: {
+            username: email.split('@')[0].toLowerCase().replace(/[^a-z0-9._-]/g, '_'),
+            email,
+            name: name || email.split('@')[0],
+            password,
+            role,
+          },
+        });
+        toast(`Added ${name || email} as ${role}.`, 'ok');
+        await renderTeamModal();
+      } catch (err) {
+        busy(btn, false);
+        msg('#inviteMsg', err.message, 'err');
+      }
+    });
+
+    $$('.tm-role-select').forEach((sel) => {
+      sel.addEventListener('change', async (e) => {
+        const uid = e.target.dataset.uid;
+        const newRole = e.target.value;
+        try {
+          await api(`/api/team/${uid}/role`, { method: 'PATCH', body: { role: newRole } });
+          toast('Role updated successfully.', 'ok');
+          await renderTeamModal();
+        } catch (err) {
+          toast(err.message, 'err');
+          await renderTeamModal();
+        }
+      });
+    });
+
+    $$('[data-delid]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const uid = btn.dataset.delid;
+        if (!confirm('Remove this team member? Their sessions will be terminated immediately.')) return;
+        try {
+          await api(`/api/auth/users/${uid}`, { method: 'DELETE' });
+          toast('Member removed.', 'ok');
+          await renderTeamModal();
+        } catch (err) {
+          toast(err.message, 'err');
+        }
+      });
+    });
+  } catch (err) {
+    body.innerHTML = `<div class="msg err">${esc(err.message)}</div>`;
+  }
+}
 
   const whoBtn = $('#whoBtn');
   const menu = $('#authUserMenu');
@@ -2059,26 +2312,33 @@ async function renderAuthSettings() {
     const st = await api('/api/auth/status');
     const t = st.transport || {};
 
-    host.innerHTML = `<h3 class="sub">Sign-in</h3>
+    host.innerHTML = `<h3 class="sub">Team &amp; Access Control</h3>
       <div class="transport ${t.level === 'danger' ? 'danger' : 'ok'}">${esc(t.message)}</div>
       ${st.enabled ? `
-        <div class="msg ok">Sign-in is on. ${st.userCount} account${st.userCount === 1 ? '' : 's'}.</div>
+        <div class="msg ok">Access Control is active. ${st.userCount} account${st.userCount === 1 ? '' : 's'}.</div>
+        <div style="margin:10px 0">
+          <button class="go ghost tiny" id="openTeamModalBtn" style="font-weight:600">Open Team &amp; Permissions Manager</button>
+        </div>
         <div class="checks">
           ${st.users.map((u) => `<div class="person">
-            <span class="avatar" style="background:hsl(210 52% 42%)">${esc(u.name.trim().split(/\\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase())}</span>
-            <span class="pn"><b>${esc(u.name)}</b><span class="pr"> — ${esc(u.username)} · ${esc(u.role)}</span>
+            <span class="avatar" style="background:${u.role === 'owner' ? '#8b5cf6' : u.role === 'admin' ? '#3b82f6' : u.role === 'editor' ? '#10b981' : '#64748b'}">${esc(u.name.trim().split(/\\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase())}</span>
+            <span class="pn"><b>${esc(u.name)}</b><span class="pr"> — ${esc(u.username || u.email)} · <span class="user-role-pill role-${esc(u.role)}">${esc(u.roleLabel || u.role)}</span></span>
               <span class="pr" style="display:block">${u.lastLoginAt ? `last signed in ${ago(u.lastLoginAt)}` : 'never signed in'}</span></span>
-            ${st.user?.role === 'owner' && u.id !== st.user.id ? `<button class="po-del" data-udel="${esc(u.id)}" title="Remove">×</button>` : ''}
+            ${(st.user?.role === 'owner' || (st.user?.role === 'admin' && u.role !== 'owner' && u.role !== 'admin')) && u.id !== st.user.id ? `<button class="po-del" data-udel="${esc(u.id)}" title="Remove">×</button>` : ''}
           </div>`).join('')}
         </div>
-        ${st.user?.role === 'owner' ? `
-          <div class="form">
-            <div class="field"><label for="nuUser">Username</label><input id="nuUser" autocapitalize="off"></div>
+        ${(st.user?.role === 'owner' || st.user?.role === 'admin') ? `
+          <div class="form" style="margin-top:14px">
+            <div class="field"><label for="nuUser">Username / Email</label><input id="nuUser" autocapitalize="off"></div>
             <div class="field"><label for="nuName">Name</label><input id="nuName"></div>
             <div class="field"><label for="nuPass">Password</label><input id="nuPass" type="password" autocomplete="new-password"></div>
-            <div class="field"><label for="nuRole">Role</label><select id="nuRole"><option value="member">Member</option><option value="owner">Owner</option></select></div>
+            <div class="field"><label for="nuRole">Role</label><select id="nuRole">
+              <option value="editor">Editor (Audits &amp; AI)</option>
+              <option value="viewer">Viewer (Read-only)</option>
+              ${st.user?.role === 'owner' ? '<option value="admin">Admin</option><option value="owner">Owner</option>' : ''}
+            </select></div>
             <div class="field"><label>&nbsp;</label><button class="go" id="nuAdd">Add person</button></div>
-          </div>` : '<p class="note">Only an owner can add or remove accounts.</p>'}
+          </div>` : '<p class="note">Only an owner or admin can add or remove accounts.</p>'}
         <div class="copybar">
           <button class="go ghost tiny" id="auRevoke">Sign out everywhere</button>
           <span class="src">Ends every session for your account, including this one. Use it if a machine goes missing.</span>
@@ -2092,8 +2352,10 @@ async function renderAuthSettings() {
           <div class="field"><label for="suPass">Password</label><input id="suPass" type="password" autocomplete="new-password"></div>
           <div class="field"><label>&nbsp;</label><button class="go" id="suGo">Turn sign-in on</button></div>
         </div>
-        <p class="note">At least 12 characters. Length matters far more than punctuation. This account becomes the owner, and there is no password reset — if you lose it, delete <code>data/auth.json</code> to start over.</p>
+        <p class="note">At least 12 characters. Length matters far more than punctuation. This account becomes the owner.</p>
         <div id="authMsg"></div>`}`;
+
+    $('#openTeamModalBtn')?.addEventListener('click', () => openTeamModal());
 
     $('#suGo')?.addEventListener('click', async (e) => {
       const btn = e.currentTarget;

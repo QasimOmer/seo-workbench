@@ -43,13 +43,27 @@ let cron = null;
 try { cron = (await import('node-cron')).default; } catch { /* scheduling off */ }
 import { summarize, excerpt } from './lib/summarize.js';
 
+import { ROOT, DATA_DIR } from './lib/paths.js';
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 4321;
-const DATA = path.join(__dirname, 'data');
+const DATA = DATA_DIR;
 
 app.use(express.json({ limit: '20mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
+
+/* Security headers — Helmet-equivalent protection against clickjacking, sniffing, and MIME confusion. */
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  if (req.protocol === 'https' || req.headers['x-forwarded-proto'] === 'https' || process.env.VERCEL) {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
+  next();
+});
 
 /* Response helpers. Declared before any route or middleware that uses them —
    `const` does not hoist, so a use above the definition is a boot-time crash. */
@@ -58,16 +72,12 @@ const fail = (res, err, code = 400) => res.status(code).json({ ok: false, error:
 /* `next` is passed through so this can wrap middleware as well as handlers. */
 const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch((e) => fail(res, e, 500));
 
-/* ══════════════════════════════ authentication ════════════════════════════════ */
+/* ══════════════════════════════ authentication & RBAC ════════════════════════════════ */
 
-/* Off by default. Once enabled, every /api route except the auth handshake
-   requires a valid session. This gate is declared before any protected route so
-   there is no window where a later-registered handler escapes it. */
-
+const IS_PROD = Boolean(process.env.VERCEL || process.env.NODE_ENV === 'production' || process.env.FORCE_AUTH === 'true');
 const COOKIE = 'sw_session';
-/* Mounted at '/api', so req.path here is RELATIVE — '/auth/login', not
-   '/api/auth/login'. Getting this wrong gates the login endpoint itself and
-   locks everyone out permanently, including whoever set it up. */
+
+/* Whitelisted unauthenticated paths */
 const OPEN_PATHS = new Set([
   '/auth/status', '/auth/login', '/auth/setup', '/auth/logout', '/gsc/callback',
   '/auth/firebase-config', '/auth/sync-firebase', '/auth/register',
@@ -83,34 +93,65 @@ const readCookie = (req, name) => {
 };
 
 const cookieAttrs = (req, maxAgeSec) => {
-  const secure = req.protocol === 'https' || req.headers['x-forwarded-proto'] === 'https';
+  const secure = req.protocol === 'https' || req.headers['x-forwarded-proto'] === 'https' || Boolean(process.env.VERCEL);
   return [
-    'Path=/', 'HttpOnly', 'SameSite=Strict',
+    'Path=/', 'HttpOnly', 'SameSite=Lax',
     secure ? 'Secure' : null,
     `Max-Age=${maxAgeSec}`,
   ].filter(Boolean).join('; ');
 };
 
+/* Role-Based Access Control Middleware */
+const requirePermission = (perm) => (req, res, next) => {
+  if (!req.authEnabled) return next();
+  if (!req.user) return res.status(401).json({ ok: false, error: 'Authentication required.' });
+  if (auth.hasPermission(req.user, perm)) return next();
+  return res.status(403).json({
+    ok: false,
+    error: `Permission denied: '${perm}' permission is required. Your role (${req.user.roleLabel || req.user.role}) is not authorized.`,
+    requiredPermission: perm,
+  });
+};
+
+const requireRole = (...roles) => (req, res, next) => {
+  if (!req.authEnabled) return next();
+  if (!req.user) return res.status(401).json({ ok: false, error: 'Authentication required.' });
+  if (req.user.role === 'owner' || roles.includes(req.user.role)) return next();
+  return res.status(403).json({
+    ok: false,
+    error: `Permission denied: Role ${roles.join(' or ')} required.`,
+  });
+};
+
 app.use('/api', wrap(async (req, res, next) => {
   const st = await auth.status();
-  req.authEnabled = st.enabled;
-  if (!st.enabled || OPEN_PATHS.has(req.path)) return next();
+  const effectiveAuth = IS_PROD || st.enabled;
+  req.authEnabled = effectiveAuth;
+
+  if (OPEN_PATHS.has(req.path)) return next();
+  if (!effectiveAuth) return next();
 
   const user = await auth.resolve(readCookie(req, COOKIE));
   if (!user) {
-    return res.status(401).json({ ok: false, error: 'Not signed in.', authRequired: true });
+    return res.status(401).json({
+      ok: false,
+      error: 'Not signed in.',
+      authRequired: true,
+      needsSetup: st.userCount === 0,
+    });
   }
 
-  /* Same-origin check on mutating requests. The cookie is SameSite=Strict,
-     which is the primary defence; this is the belt to that braces, because a
-     single missed flag should not be the whole story. */
+  /* Same-origin check on mutating requests. Supports custom domains & vercel.app previews */
   if (req.method !== 'GET') {
     const origin = req.headers.origin;
     if (origin) {
-      const expect = `${req.protocol}://${req.headers.host}`;
-      if (origin !== expect) {
-        return res.status(403).json({ ok: false, error: 'Cross-origin request refused.' });
-      }
+      try {
+        const originUrl = new URL(origin);
+        const hostUrl = new URL(`${req.protocol}://${req.headers.host}`);
+        if (originUrl.host !== hostUrl.host && !originUrl.host.endsWith('.vercel.app')) {
+          return res.status(403).json({ ok: false, error: 'Cross-origin request refused.' });
+        }
+      } catch {}
     }
   }
 
@@ -120,9 +161,12 @@ app.use('/api', wrap(async (req, res, next) => {
 
 app.get('/api/auth/status', wrap(async (req, res) => {
   const st = await auth.status();
-  const user = st.enabled ? await auth.resolve(readCookie(req, COOKIE)) : null;
+  const effectiveAuth = IS_PROD || st.enabled;
+  const user = effectiveAuth ? await auth.resolve(readCookie(req, COOKIE)) : null;
   ok(res, {
     ...st,
+    enabled: effectiveAuth,
+    isProduction: IS_PROD,
     user,
     transport: auth.transportRisk({
       host: req.headers.host || '',
@@ -131,13 +175,12 @@ app.get('/api/auth/status', wrap(async (req, res) => {
   });
 }));
 
-/** First account only. Refuses once one exists, so this cannot be used to add
-    an owner from outside. */
+/** First account setup. Refuses once one exists. */
 app.post('/api/auth/setup', wrap(async (req, res) => {
   const st = await auth.status();
-  if (st.userCount > 0) return fail(res, 'An account already exists. Sign in, then add people from Setup.', 403);
-  const { username, password, name } = req.body;
-  const user = await auth.createUser({ username, password, name });
+  if (st.userCount > 0) return fail(res, 'An account already exists. Sign in, then add people from Team & Access.', 403);
+  const { username, password, name, email } = req.body;
+  const user = await auth.createUser({ username, password, name, email, role: 'owner' });
   await auth.setEnabled(true);
   const s = await auth.login({ username, password, ip: req.ip, userAgent: req.headers['user-agent'] || '' });
   res.setHeader('Set-Cookie', `${COOKIE}=${encodeURIComponent(s.cookie)}; ${cookieAttrs(req, 14 * 86400)}`);
@@ -146,13 +189,12 @@ app.post('/api/auth/setup', wrap(async (req, res) => {
 
 app.post('/api/auth/login', wrap(async (req, res) => {
   const { username, password } = req.body;
-  if (!username || !password) return fail(res, 'Username and password are both required.');
+  if (!username || !password) return fail(res, 'Username and password are required.');
   try {
     const s = await auth.login({ username, password, ip: req.ip, userAgent: req.headers['user-agent'] || '' });
     res.setHeader('Set-Cookie', `${COOKIE}=${encodeURIComponent(s.cookie)}; ${cookieAttrs(req, 14 * 86400)}`);
     ok(res, { user: s.user, expiresAt: s.expiresAt });
   } catch (e) {
-    // 401 rather than 400: this is an authentication failure, not a malformed request.
     res.status(401).json({ ok: false, error: e.message });
   }
 }));
@@ -175,15 +217,16 @@ app.get('/api/auth/firebase-config', wrap(async (req, res) => {
 }));
 
 app.post('/api/auth/register', wrap(async (req, res) => {
-  const { username, password, name } = req.body;
+  const { username, password, name, email } = req.body;
   const st = await auth.status();
   if (!username || !password) return fail(res, 'Username and password are required.');
   let user;
   if (!st.userCount) {
-    user = await auth.createUser({ username, password, name });
+    user = await auth.createUser({ username, password, name, email, role: 'owner' });
     await auth.setEnabled(true);
   } else {
-    user = await auth.createUser({ username, password, name, role: 'member' }, { byRole: 'owner' });
+    // Self-registration for team members defaults to viewer/editor
+    user = await auth.createUser({ username, password, name, email, role: 'editor' }, { byRole: 'owner' });
   }
   const s = await auth.login({ username, password, ip: req.ip, userAgent: req.headers['user-agent'] || '' });
   res.setHeader('Set-Cookie', `${COOKIE}=${encodeURIComponent(s.cookie)}; ${cookieAttrs(req, 14 * 86400)}`);
@@ -193,26 +236,45 @@ app.post('/api/auth/register', wrap(async (req, res) => {
 app.post('/api/auth/sync-firebase', wrap(async (req, res) => {
   const { uid, email, displayName, photoURL } = req.body;
   if (!uid) return fail(res, 'Firebase UID is required.');
-  const user = {
-    id: uid,
-    username: (email ? email.split('@')[0] : displayName || uid).toLowerCase().replace(/[^a-z0-9._-]/g, '_').slice(0, 32),
-    name: displayName || email?.split('@')[0] || 'Member',
-    email: email || null,
-    photoURL: photoURL || null,
-    role: 'member',
-    provider: 'firebase',
-  };
+  const s = await auth.syncFirebaseUser({
+    uid,
+    email,
+    displayName,
+    photoURL,
+    ip: req.ip,
+    userAgent: req.headers['user-agent'] || '',
+  });
+  res.setHeader('Set-Cookie', `${COOKIE}=${encodeURIComponent(s.cookie)}; ${cookieAttrs(req, 14 * 86400)}`);
+  ok(res, { user: s.user, expiresAt: s.expiresAt });
+}));
+
+/* ── Team & RBAC Management Endpoints ───────────────────────────────────── */
+
+app.get('/api/team', requirePermission('team:read'), wrap(async (req, res) => {
+  ok(res, await auth.listTeam());
+}));
+
+app.post('/api/team/invite', requirePermission('team:manage'), wrap(async (req, res) => {
+  const { username, password, name, role = 'editor', email } = req.body;
+  const user = await auth.createUser({ username, password, name, role, email }, { byUser: req.user });
   ok(res, { user });
 }));
 
-app.post('/api/auth/users', wrap(async (req, res) => {
-  const user = await auth.createUser(req.body, { byRole: req.user?.role });
+app.patch('/api/team/:id/role', requirePermission('team:manage'), wrap(async (req, res) => {
+  const { role } = req.body;
+  if (!role) return fail(res, 'Role is required.');
+  const user = await auth.updateUserRole(req.params.id, role, { byUser: req.user });
   ok(res, { user });
 }));
 
-app.delete('/api/auth/users/:id', wrap(async (req, res) => {
+app.post('/api/auth/users', requirePermission('team:manage'), wrap(async (req, res) => {
+  const user = await auth.createUser(req.body, { byUser: req.user });
+  ok(res, { user });
+}));
+
+app.delete('/api/auth/users/:id', requirePermission('team:manage'), wrap(async (req, res) => {
   await auth.deleteUser(req.params.id, { byRole: req.user?.role, byId: req.user?.id });
-  ok(res, await auth.status());
+  ok(res, await auth.listTeam());
 }));
 
 app.post('/api/auth/password', wrap(async (req, res) => {
@@ -232,7 +294,7 @@ app.post('/api/auth/revoke-all', wrap(async (req, res) => {
   ok(res, r);
 }));
 
-app.post('/api/auth/enable', wrap(async (req, res) => {
+app.post('/api/auth/enable', requireRole('owner'), wrap(async (req, res) => {
   ok(res, await auth.setEnabled(!!req.body.enabled));
 }));
 
@@ -243,7 +305,7 @@ const state = { crawl: null, audit: null, progress: null, propertyId: null, clus
 
 /* ─────────────────────────────────── crawl ────────────────────────────────── */
 
-app.post('/api/crawl', wrap(async (req, res) => {
+app.post('/api/crawl', requirePermission('audit:run'), wrap(async (req, res) => {
   const { url, maxPages = 500, ua = 'googlebot', includeSubdomains = false, respectRobots = true, concurrency = 5, moneyUrls = [] } = req.body;
   if (!url) return fail(res, 'A start URL is required.');
   state.progress = { done: 0, max: maxPages, url: '', phase: 'crawling' };
@@ -435,7 +497,7 @@ app.get('/api/competitors', wrap(async (req, res) => {
 /** Crawls a competitor and stores only the profile, not their pages — the
     comparison needs aggregates, and keeping someone else's content on disk
     serves no purpose. */
-app.post('/api/competitors', wrap(async (req, res) => {
+app.post('/api/competitors', requirePermission('audit:run'), wrap(async (req, res) => {
   const { url, maxPages = 150 } = req.body;
   if (!url) return fail(res, 'Give it a competitor URL.');
   let origin;
@@ -451,7 +513,7 @@ app.post('/api/competitors', wrap(async (req, res) => {
   ok(res, { profile: prof, count: all.length });
 }));
 
-app.delete('/api/competitors/:host', wrap(async (req, res) => {
+app.delete('/api/competitors/:host', requirePermission('audit:run'), wrap(async (req, res) => {
   const all = await competitor.remove(activeId(), req.params.host);
   ok(res, { competitors: all.map((c) => c.host) });
 }));
@@ -551,7 +613,7 @@ app.get('/api/settings/verify/:key', wrap(async (req, res) => {
 
 /** Validates against the real API before accepting, then applies live so
     features work without a restart. */
-app.post('/api/settings', wrap(async (req, res) => {
+app.post('/api/settings', requirePermission('settings:write'), wrap(async (req, res) => {
   const values = req.body.values || {};
   if (!Object.keys(values).length) return fail(res, 'Nothing to save.');
   ok(res, await settings.save(values));
@@ -718,21 +780,21 @@ app.get('/api/monitors', wrap(async (req, res) => ok(res, {
   reason: cron ? null : 'node-cron is not installed, so schedules will not fire. Run: npm install node-cron. You can still run a monitor by hand.',
 })));
 
-app.post('/api/monitors', wrap(async (req, res) => {
+app.post('/api/monitors', requirePermission('audit:run'), wrap(async (req, res) => {
   if (!req.body.monitor?.url) return fail(res, 'A monitor needs a URL.');
   const m = await monitor.saveMonitor(req.body.monitor);
   if (cron) await monitor.startAll(runMonitor, { cron });
   ok(res, { monitor: m, active: monitor.activeCount() });
 }));
 
-app.delete('/api/monitors/:id', wrap(async (req, res) => {
+app.delete('/api/monitors/:id', requirePermission('audit:run'), wrap(async (req, res) => {
   const list = await monitor.deleteMonitor(req.params.id);
   if (cron) await monitor.startAll(runMonitor, { cron });
   ok(res, { monitors: list });
 }));
 
 /** Run one now, so you can see what it would report without waiting a week. */
-app.post('/api/monitors/:id/run', wrap(async (req, res) => {
+app.post('/api/monitors/:id/run', requirePermission('audit:run'), wrap(async (req, res) => {
   const m = (await monitor.listMonitors()).find((x) => x.id === req.params.id);
   if (!m) return fail(res, 'No such monitor.');
   const { diff, snapshot } = await runMonitor(m);
@@ -845,7 +907,7 @@ app.post('/api/properties/activate', wrap(async (req, res) => {
   ok(res, { property: rec, restored: !!cached, ...(cached || {}) });
 }));
 
-app.delete('/api/properties/:id', wrap(async (req, res) => {
+app.delete('/api/properties/:id', requirePermission('properties:manage'), wrap(async (req, res) => {
   const idx = await props.removeProperty(req.params.id);
   if (state.propertyId === req.params.id) { state.crawl = null; state.audit = null; state.propertyId = null; }
   ok(res, idx);
@@ -861,13 +923,13 @@ app.get('/api/brand', wrap(async (req, res) => {
   ok(res, { brand: b, completeness: brandLib.brandCompleteness(b), aiReady: ai.aiConfigured() });
 }));
 
-app.post('/api/brand', wrap(async (req, res) => {
+app.post('/api/brand', requirePermission('content:generate'), wrap(async (req, res) => {
   const b = await brandLib.saveBrand(activeId(), req.body.brand || {});
   ok(res, { brand: b, completeness: brandLib.brandCompleteness(b) });
 }));
 
 /** Proposes the brand record from the crawl so you edit rather than type. */
-app.post('/api/brand/infer', wrap(async (req, res) => {
+app.post('/api/brand/infer', requirePermission('content:generate'), wrap(async (req, res) => {
   if (!state.crawl) return fail(res, 'Crawl the site first — this reads the pages to work out what the business does.');
   const draft = await ai.inferBrand(state.crawl.pages, state.crawl.origin);
   ok(res, { draft, note: 'Nothing is saved yet. Check the fields marked uncertain, then save.' });
@@ -897,7 +959,7 @@ app.post('/api/trends/gsc', wrap(async (req, res) => {
 /** Never returns empty-handed. The deterministic engine works from the crawl
     with no network; AI is attempted only to improve on it, and its failure is
     reported as a note rather than an error. */
-app.post('/api/ai/fix', wrap(async (req, res) => {
+app.post('/api/ai/fix', requirePermission('content:generate'), wrap(async (req, res) => {
   const { findingId, preferAi = false } = req.body;
   const finding = state.audit?.findings.find((f) => f.id === findingId || f.title === findingId);
   if (!finding) return fail(res, 'That finding is not in the current audit.');
@@ -924,7 +986,7 @@ app.post('/api/ai/fix', wrap(async (req, res) => {
   return fail(res, 'This finding needs a decision rather than an edit — read the Fix line on the finding. Try "Improve with AI" for a written suggestion.');
 }));
 
-app.post('/api/ai/content', wrap(async (req, res) => {
+app.post('/api/ai/content', requirePermission('content:generate'), wrap(async (req, res) => {
   const { kind = 'post', topic, intent, notes, preferAi = true } = req.body;
   if (!topic) return fail(res, 'Give it a topic.');
   const brand = await brandLib.getBrand(activeId());
@@ -958,7 +1020,7 @@ app.get('/api/social/meta', (req, res) => ok(res, {
   aiReady: true,
 }));
 
-app.post('/api/social/draft', wrap(async (req, res) => {
+app.post('/api/social/draft', requirePermission('content:generate'), wrap(async (req, res) => {
   const { topic, platforms = ['instagram_post'], notes } = req.body;
   if (!topic) return fail(res, 'Give it a topic.');
   const brand = await brandLib.getBrand(activeId());
@@ -975,7 +1037,7 @@ app.post('/api/social/draft', wrap(async (req, res) => {
 
 /** Local procedural artwork by default — instant, offline, and repeatable from
     a seed. AI photography is opt-in, and falls back here when it fails. */
-app.post('/api/social/background', wrap(async (req, res) => {
+app.post('/api/social/background', requirePermission('content:generate'), wrap(async (req, res) => {
   const { prompt, platform, seed = Math.floor(Math.random() * 9999), style = 'mesh', mode = 'local' } = req.body;
   const spec = ai.PLATFORMS[platform] || ai.PLATFORMS.instagram_post;
   const brand = await brandLib.getBrand(activeId());
@@ -999,7 +1061,7 @@ app.post('/api/social/background', wrap(async (req, res) => {
 app.get('/api/social/styles', (req, res) => ok(res, { styles: artwork.STYLES }));
 
 /** Returns SVG. Composed with real fonts because generated lettering is unusable. */
-app.post('/api/social/compose', wrap(async (req, res) => {
+app.post('/api/social/compose', requirePermission('content:generate'), wrap(async (req, res) => {
   const brand = await brandLib.getBrand(activeId());
   const svg = social.composePost({
     brandName: req.body.brandName ?? brand.name,
