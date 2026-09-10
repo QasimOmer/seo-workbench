@@ -1311,43 +1311,44 @@ function slimPage(p) {
   };
 }
 
-if (cron) {
+if (cron && !process.env.VERCEL) {
   monitor.startAll(runMonitor, { cron })
     .then((r) => { if (r.started) console.log(`  ${r.started} monitor(s) scheduled`); })
     .catch(() => {});
 }
 
-const server = app.listen(PORT, () => {
-  const keyed = process.env.GOOGLE_API_KEY ? 'with API key' : 'no key — low PSI quota';
-  const oauth = gsc.isConfigured() ? 'configured' : 'not configured';
-  console.log(`\n  SEO Workbench  →  http://localhost:${PORT}`);
-  console.log(`  PageSpeed: ${keyed}   Search Console OAuth: ${oauth}\n`);
-});
-
-/* A port already in use is the single most common way to start this — you
-   restarted without stopping the old one. A raw stack trace for something that
-   ordinary is a defect, so say what happened and what to type. */
-server.on('error', (e) => {
-  if (e.code === 'EADDRINUSE') {
-    const alt = Number(PORT) + 1;
-    console.error(`\n  Port ${PORT} is already in use — an earlier copy of SEO Workbench is probably still running.`);
-    console.error(`\n  Either reuse it:      http://localhost:${PORT}`);
-    console.error(`  or stop it, Windows:  taskkill /F /IM node.exe`);
-    console.error(`  or stop it, mac/Linux: kill $(lsof -ti :${PORT})`);
-    console.error(`  or use another port:  PORT=${alt} npm start      (PowerShell: $env:PORT=${alt}; npm.cmd start)\n`);
-  } else if (e.code === 'EACCES') {
-    console.error(`\n  Not allowed to bind port ${PORT}. Ports below 1024 need admin rights — pick something higher, e.g. PORT=4321.\n`);
-  } else {
-    console.error(`\n  Could not start the server: ${e.message}\n`);
-  }
-  process.exit(1);
-});
-
-/* Ctrl+C should stop the cron schedules too, not orphan them. */
-for (const sig of ['SIGINT', 'SIGTERM']) {
-  process.on(sig, () => {
-    try { monitor.stopAll(); } catch { /* nothing scheduled */ }
-    server.close(() => process.exit(0));
-    setTimeout(() => process.exit(0), 1500).unref();
+let server = null;
+if (!process.env.VERCEL) {
+  server = app.listen(PORT, () => {
+    const keyed = process.env.GOOGLE_API_KEY ? 'with API key' : 'no key — low PSI quota';
+    const oauth = gsc.isConfigured() ? 'configured' : 'not configured';
+    console.log(`\n  SEO Workbench  →  http://localhost:${PORT}`);
+    console.log(`  PageSpeed: ${keyed}   Search Console OAuth: ${oauth}\n`);
   });
+
+  server.on('error', (e) => {
+    if (e.code === 'EADDRINUSE') {
+      const alt = Number(PORT) + 1;
+      console.error(`\n  Port ${PORT} is already in use — an earlier copy of SEO Workbench is probably still running.`);
+      console.error(`\n  Either reuse it:      http://localhost:${PORT}`);
+      console.error(`  or stop it, Windows:  taskkill /F /IM node.exe`);
+      console.error(`  or stop it, mac/Linux: kill $(lsof -ti :${PORT})`);
+      console.error(`  or use another port:  PORT=${alt} npm start      (PowerShell: $env:PORT=${alt}; npm.cmd start)\n`);
+    } else if (e.code === 'EACCES') {
+      console.error(`\n  Not allowed to bind port ${PORT}. Ports below 1024 need admin rights — pick something higher, e.g. PORT=4321.\n`);
+    } else {
+      console.error(`\n  Could not start the server: ${e.message}\n`);
+    }
+    process.exit(1);
+  });
+
+  for (const sig of ['SIGINT', 'SIGTERM']) {
+    process.on(sig, () => {
+      try { monitor.stopAll(); } catch { /* nothing scheduled */ }
+      server.close(() => process.exit(0));
+      setTimeout(() => process.exit(0), 1500).unref();
+    });
+  }
 }
+
+export default app;
