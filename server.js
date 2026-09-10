@@ -1180,27 +1180,66 @@ app.post('/api/crux', wrap(async (req, res) => {
 
 /* ───────────────────────────── search console ─────────────────────────────── */
 
+function getGscRedirectUri(req) {
+  if (process.env.GSC_REDIRECT_URI || process.env.GOOGLE_REDIRECT_URI) {
+    return process.env.GSC_REDIRECT_URI || process.env.GOOGLE_REDIRECT_URI;
+  }
+  const proto = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+  const host = req.headers['x-forwarded-host'] || req.get('host') || `localhost:${process.env.PORT || 4321}`;
+  return `${proto}://${host}/api/gsc/callback`;
+}
+
 app.get('/api/gsc/status', (req, res) => ok(res, {
   configured: gsc.isConfigured(),
   connected: gsc.isConnected(),
-  authUrl: gsc.isConnected() ? null : gsc.authUrl(),
+  authUrl: gsc.isConnected() ? null : gsc.authUrl(getGscRedirectUri(req)),
 }));
 
-app.get('/api/gsc/callback', wrap(async (req, res) => {
+app.get('/api/gsc/callback', async (req, res) => {
   if (req.query.error) {
     const safeError = String(req.query.error).replace(/[&<>"']/g, '');
-    return res.status(400).send(`<!doctype html><meta charset="utf-8"><body style="font:16px/1.5 system-ui;padding:40px;background:#EDEFE8;color:#14201C">
-      <h1 style="font-size:22px;color:#c00">Authorisation cancelled or denied</h1>
-      <p>Google returned: <b>${safeError}</b></p>
-      <p>You can close this tab and return to the workbench.</p></body>`);
+    return res.status(400).send(`<!doctype html><meta charset="utf-8">
+      <body style="font:16px/1.5 system-ui,-apple-system,sans-serif;padding:40px;background:#0d1117;color:#c9d1d9;text-align:center">
+      <div style="max-width:480px;margin:40px auto;padding:32px;background:#161b22;border:1px solid #30363d;border-radius:8px">
+        <h1 style="font-size:20px;color:#f85149;margin-bottom:12px">Authorisation Cancelled</h1>
+        <p style="color:#8b949e;margin-bottom:20px">Google returned: <b>${safeError}</b></p>
+        <a href="/" style="display:inline-block;padding:8px 16px;background:#238636;color:#fff;text-decoration:none;border-radius:6px;font-weight:600">Return to Workbench</a>
+      </div></body>`);
   }
-  if (!req.query.code) return res.status(400).send('No authorisation code returned.');
-  await gsc.exchangeCode(req.query.code);
-  res.send(`<!doctype html><meta charset="utf-8"><body style="font:16px/1.5 system-ui;padding:40px;background:#EDEFE8;color:#14201C">
-    <h1 style="font-size:22px">Search Console connected</h1>
-    <p>You can close this tab and return to the workbench.</p>
-    <script>setTimeout(()=>window.close(),1200)</script></body>`);
-}));
+  if (!req.query.code) {
+    return res.status(400).send(`<!doctype html><meta charset="utf-8">
+      <body style="font:16px/1.5 system-ui,-apple-system,sans-serif;padding:40px;background:#0d1117;color:#c9d1d9;text-align:center">
+      <div style="max-width:480px;margin:40px auto;padding:32px;background:#161b22;border:1px solid #30363d;border-radius:8px">
+        <h1 style="font-size:20px;color:#f85149;margin-bottom:12px">Missing Code</h1>
+        <p style="color:#8b949e;margin-bottom:20px">No authorisation code returned from Google.</p>
+        <a href="/" style="display:inline-block;padding:8px 16px;background:#238636;color:#fff;text-decoration:none;border-radius:6px;font-weight:600">Return to Workbench</a>
+      </div></body>`);
+  }
+  const redirectUri = getGscRedirectUri(req);
+  try {
+    await gsc.exchangeCode(req.query.code, redirectUri);
+    return res.send(`<!doctype html><meta charset="utf-8">
+      <body style="font:16px/1.5 system-ui,-apple-system,sans-serif;padding:40px;background:#0d1117;color:#c9d1d9;text-align:center">
+      <div style="max-width:480px;margin:40px auto;padding:32px;background:#161b22;border:1px solid #30363d;border-radius:8px">
+        <h1 style="font-size:20px;color:#3fb950;margin-bottom:12px">Search Console Connected</h1>
+        <p style="color:#8b949e;margin-bottom:20px">Your Google Search Console connection is active. Closing window...</p>
+        <a href="/" style="display:inline-block;padding:8px 16px;background:#238636;color:#fff;text-decoration:none;border-radius:6px;font-weight:600">Return to Workbench</a>
+      </div>
+      <script>setTimeout(()=>{ try { window.opener?.location?.reload?.(); window.close(); } catch(e){} }, 1200);</script>
+      </body>`);
+  } catch (err) {
+    console.error('GSC exchange code failed:', err);
+    return res.status(500).send(`<!doctype html><meta charset="utf-8">
+      <body style="font:16px/1.5 system-ui,-apple-system,sans-serif;padding:40px;background:#0d1117;color:#c9d1d9;text-align:center">
+      <div style="max-width:520px;margin:40px auto;padding:32px;background:#161b22;border:1px solid #30363d;border-radius:8px">
+        <h1 style="font-size:20px;color:#f85149;margin-bottom:12px">Connection Failed</h1>
+        <p style="color:#8b949e;margin-bottom:16px">Failed to exchange authorization token with Google:</p>
+        <pre style="background:#0d1117;padding:12px;border-radius:6px;font-size:13px;color:#ff7b72;overflow-x:auto;text-align:left;word-break:break-all">${String(err.message).replace(/[&<>"']/g, '')}</pre>
+        <p style="color:#8b949e;font-size:13px;margin:16px 0">Note: Google authorization codes are single-use and expire within minutes. Please try connecting again from the Search Console tab in your workbench.</p>
+        <a href="/" style="display:inline-block;padding:8px 16px;background:#238636;color:#fff;text-decoration:none;border-radius:6px;font-weight:600">Return to Workbench</a>
+      </div></body>`);
+  }
+});
 
 app.post('/api/gsc/disconnect', wrap(async (req, res) => { await gsc.disconnect(); ok(res, {}); }));
 app.get('/api/gsc/sites', wrap(async (req, res) => ok(res, { sites: await gsc.listSites() })));

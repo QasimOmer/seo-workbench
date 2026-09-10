@@ -960,8 +960,35 @@ tr.blocking td{background:var(--fault-bg)}
 .sc-ft-actions{display:flex;align-items:center;gap:10px}
 
 /* ═══════════════════════════ Product Landing Page ═══════════════════════════ */
-body.on-landing{background:var(--ground);overflow-x:hidden}
-.landing-view{min-height:100vh;display:flex;flex-direction:column;background:var(--ground);color:var(--ink);animation:fadeIn .25s ease}
+[hidden] { display: none !important; }
+
+body.on-landing {
+  background: var(--ground);
+  overflow-x: hidden;
+}
+
+body.on-landing .portal {
+  display: none !important;
+}
+
+body:not(.on-landing) #landingView,
+body:not(.on-landing) .landing-view {
+  display: none !important;
+}
+
+body.on-landing #landingView,
+body.on-landing .landing-view {
+  display: flex !important;
+}
+
+.landing-view {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--ground);
+  color: var(--ink);
+  animation: fadeIn .25s ease;
+}
 
 .landing-nav{display:flex;align-items:center;justify-content:space-between;padding:16px 40px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--ground);backdrop-filter:blur(10px);z-index:100}
 .landing-brand{display:flex;align-items:center;gap:10px}

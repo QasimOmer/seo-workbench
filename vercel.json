@@ -1,5 +1,14 @@
 {
   "version": 2,
+  "env": {
+    "DATA_DIR": "/tmp/data"
+  },
+  "functions": {
+    "api/index.js": {
+      "maxDuration": 60,
+      "memory": 1024
+    }
+  },
   "rewrites": [
     {
       "source": "/api/(.*)",
@@ -18,3 +27,4 @@
     }
   ]
 }
+

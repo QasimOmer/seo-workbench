@@ -1884,8 +1884,14 @@ function setupLandingPage() {
 function showLanding() {
   const lv = $('#landingView');
   const portal = $('.portal');
-  if (lv) lv.hidden = false;
-  if (portal) portal.hidden = true;
+  if (lv) {
+    lv.hidden = false;
+    lv.style.display = 'flex';
+  }
+  if (portal) {
+    portal.hidden = true;
+    portal.style.display = 'none';
+  }
   document.body.classList.add('on-landing');
   try {
     const u = new URL(location);
@@ -1898,9 +1904,16 @@ function showLanding() {
 function hideLanding() {
   const lv = $('#landingView');
   const portal = $('.portal');
-  if (lv) lv.hidden = true;
-  if (portal) portal.hidden = false;
+  if (lv) {
+    lv.hidden = true;
+    lv.style.display = 'none';
+  }
+  if (portal) {
+    portal.hidden = false;
+    portal.style.display = '';
+  }
   document.body.classList.remove('on-landing');
+  try { sessionStorage.setItem('in_workbench', '1'); } catch {}
   try {
     const u = new URL(location);
     u.searchParams.delete('view');
