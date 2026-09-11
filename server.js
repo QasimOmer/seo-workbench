@@ -345,6 +345,31 @@ app.post('/api/auth/enable', requireRole('owner'), wrap(async (req, res) => {
 // Latest crawl in memory; snapshots on disk so you can diff across a deploy.
 const state = { crawl: null, audit: null, progress: null, propertyId: null, clusters: [] };
 
+async function ensureCrawlLoaded() {
+  if (state.crawl && state.audit) return state.crawl;
+  try {
+    const list = await props.listProperties();
+    const targetId = state.propertyId || list.activeId || list.properties?.[0]?.id;
+    if (targetId) {
+      const cached = await props.loadCrawl(targetId);
+      if (cached && cached.pages && cached.pages.length) {
+        state.crawl = {
+          origin: cached.origin, crawledAt: cached.crawledAt, pages: cached.pages,
+          truncated: cached.truncated || false, timeExceeded: cached.timeExceeded || false,
+          timeElapsedMs: cached.timeElapsedMs || 0, remainingQueue: cached.remainingQueue || 0,
+          external: [], blocked: [], robots: { sitemaps: [] }, robotsRaw: '', sitemapSources: [],
+        };
+        state.audit = { stats: cached.stats || {}, counts: cached.counts || {}, findings: cached.findings || [], topThree: cached.topThree || [] };
+        state.propertyId = targetId;
+        return state.crawl;
+      }
+    }
+  } catch (e) {
+    console.warn('[ensureCrawlLoaded]', e.message);
+  }
+  return state.crawl;
+}
+
 
 /* ─────────────────────────────────── crawl ────────────────────────────────── */
 
@@ -402,7 +427,8 @@ app.post('/api/crawl', requirePermission('audit:run'), wrap(async (req, res) => 
 
 app.get('/api/progress', (req, res) => ok(res, { progress: state.progress }));
 
-app.get('/api/crawl/current', (req, res) => {
+app.get('/api/crawl/current', wrap(async (req, res) => {
+  await ensureCrawlLoaded();
   if (!state.crawl) return fail(res, 'No crawl in memory. Run one from the Crawl tab.', 404);
   ok(res, {
     stats: state.audit.stats, counts: state.audit.counts, findings: state.audit.findings,
@@ -412,9 +438,10 @@ app.get('/api/crawl/current', (req, res) => {
     truncated: state.crawl.truncated, remainingQueue: state.crawl.remainingQueue,
     timeExceeded: state.crawl.timeExceeded || false, timeElapsedMs: state.crawl.timeElapsedMs || 0,
   });
-});
+}));
 
 app.get('/api/page', wrap(async (req, res) => {
+  await ensureCrawlLoaded();
   let p = state.crawl?.pages.find((x) => x.url === req.query.url);
   if (!p) {
     const list = await props.listProperties();
@@ -428,6 +455,7 @@ app.get('/api/page', wrap(async (req, res) => {
 }));
 
 app.post('/api/page/review', wrap(async (req, res) => {
+  await ensureCrawlLoaded();
   const { url, withPsi = false, withInspection = false, siteUrl } = req.body;
   const p = state.crawl?.pages.find((x) => x.url === url);
   if (!p) return fail(res, 'URL not found in the current crawl. Crawl the site first.', 404);
@@ -444,6 +472,7 @@ app.post('/api/page/review', wrap(async (req, res) => {
 /** A separate discipline from SEO, graded separately so it never muddles the
     priority ladder. Computed entirely from the crawl. */
 app.get('/api/security', wrap(async (req, res) => {
+  await ensureCrawlLoaded();
   if (!state.crawl) return fail(res, 'Crawl a site first — this reads the response headers the crawl already collected.');
   const site = security.auditSite(state.crawl.pages);
   if (!site) return fail(res, 'No HTML pages with headers in this crawl.');
@@ -548,6 +577,7 @@ app.get('/api/logs/bots', (req, res) => ok(res, {
    you can copy or beat. */
 
 app.get('/api/competitors', wrap(async (req, res) => {
+  await ensureCrawlLoaded();
   const list = await competitor.list(activeId());
   ok(res, {
     competitors: list.map((c) => ({ host: c.host, origin: c.origin, pages: c.pages, crawledAt: c.crawledAt })),
@@ -580,6 +610,7 @@ app.delete('/api/competitors/:host', requirePermission('audit:run'), wrap(async 
 }));
 
 app.get('/api/competitors/compare', wrap(async (req, res) => {
+  await ensureCrawlLoaded();
   if (!state.crawl) return fail(res, 'Crawl your own site first — there is nothing to compare against otherwise.');
   const list = await competitor.list(activeId());
   if (!list.length) return fail(res, 'No competitors crawled yet. Add one and it will be crawled and profiled.');
@@ -1018,6 +1049,7 @@ app.post('/api/brand', requirePermission('content:generate'), wrap(async (req, r
 
 /** Proposes the brand record from the crawl so you edit rather than type. */
 app.post('/api/brand/infer', requirePermission('content:generate'), wrap(async (req, res) => {
+  await ensureCrawlLoaded();
   if (!state.crawl) return fail(res, 'Crawl the site first — this reads the pages to work out what the business does.');
   const draft = await ai.inferBrand(state.crawl.pages, state.crawl.origin);
   ok(res, { draft, note: 'Nothing is saved yet. Check the fields marked uncertain, then save.' });
@@ -1093,6 +1125,7 @@ app.post('/api/ai/content', requirePermission('content:generate'), wrap(async (r
 
 /** Charts computed from the crawl, so they populate with no key or quota. */
 app.get('/api/insights', wrap(async (req, res) => {
+  await ensureCrawlLoaded();
   if (!state.crawl) return fail(res, 'Run a crawl first — every chart here is computed from it.');
   const d = buildInsights(state.crawl, state.audit);
   if (!d) return fail(res, 'No HTML pages returned 200 in this crawl, so there is nothing to chart.');
@@ -1169,6 +1202,7 @@ app.post('/api/campaigns/:cid/baseline', wrap(async (req, res) =>
   ok(res, { campaign: await program.baselineCampaign(activeId(), req.params.cid, req.body.metrics || {}) })));
 
 app.get('/api/program', wrap(async (req, res) => {
+  await ensureCrawlLoaded();
   if (!state.audit?.findings?.length) return fail(res, 'Run a crawl first — the plan is built from the findings.');
   const pointsPerWeek = Number(req.query.capacity) || 10;
   const plan = program.buildProgram(state.audit.findings, { pointsPerWeek });
@@ -1181,6 +1215,7 @@ app.post('/api/program/toggle', wrap(async (req, res) =>
 /* ────────────────────────────── snapshots / compare ───────────────────────── */
 
 app.post('/api/snapshot', wrap(async (req, res) => {
+  await ensureCrawlLoaded();
   if (!state.crawl) return fail(res, 'Nothing to save — run a crawl first.');
   await fs.mkdir(DATA, { recursive: true });
   const name = (req.body.name || `snapshot-${Date.now()}`).replace(/[^a-z0-9-_]/gi, '-');
@@ -1206,6 +1241,7 @@ app.get('/api/snapshots', wrap(async (req, res) => {
 
 app.post('/api/compare', wrap(async (req, res) => {
   const { name } = req.body;
+  await ensureCrawlLoaded();
   if (!state.crawl) return fail(res, 'Run a crawl first, then compare it against a snapshot.');
   const snap = JSON.parse(await fs.readFile(path.join(DATA, `${name}.json`), 'utf8'));
 
@@ -1456,12 +1492,14 @@ app.post('/api/keywords/questions', wrap(async (req, res) =>
 
 app.post('/api/keywords/map', wrap(async (req, res) => {
   const { clusters } = req.body;
+  await ensureCrawlLoaded();
   if (!state.crawl) return fail(res, 'Crawl the site first — the map needs pages to map to.');
   ok(res, buildMap(clusters, state.crawl.pages));
 }));
 
 app.post('/api/keywords/competitor-gap', wrap(async (req, res) => {
   const { competitorUrl, maxPages = 60 } = req.body;
+  await ensureCrawlLoaded();
   if (!state.crawl) return fail(res, 'Crawl your own site first.');
   const theirs = await crawl(competitorUrl, { maxPages, concurrency: 4 },
     (p) => { state.progress = { ...p, phase: 'competitor' }; });
@@ -1476,6 +1514,7 @@ app.post('/api/keywords/competitor-gap', wrap(async (req, res) => {
 
 app.post('/api/generate/titles', wrap(async (req, res) => {
   const { brand = '', separator = '|', targets = {}, useClaude = false, instruction, onlyUrls } = req.body;
+  await ensureCrawlLoaded();
   if (!state.crawl) return fail(res, 'Crawl the site first.');
   let pages = state.crawl.pages.filter((p) => p.status === 200 && !p.noindex && p.title !== undefined);
   if (onlyUrls?.length) pages = pages.filter((p) => onlyUrls.includes(p.url));
@@ -1492,17 +1531,20 @@ app.post('/api/generate/schema', wrap(async (req, res) =>
   ok(res, gen.buildSchema(req.body.type, req.body.data || {}))));
 
 app.post('/api/generate/links', wrap(async (req, res) => {
+  await ensureCrawlLoaded();
   if (!state.crawl) return fail(res, 'Crawl the site first.');
   ok(res, gen.linkOpportunities(state.crawl.pages, req.body));
 }));
 
-app.get('/api/generate/link-graph', (req, res) => {
+app.get('/api/generate/link-graph', wrap(async (req, res) => {
+  await ensureCrawlLoaded();
   if (!state.crawl) return fail(res, 'Crawl the site first.', 404);
   ok(res, { rows: gen.linkGraphReport(state.crawl.pages) });
-});
+}));
 
 app.post('/api/generate/redirects', wrap(async (req, res) => {
   const { oldUrls = [], format = 'csv' } = req.body;
+  await ensureCrawlLoaded();
   if (!state.crawl) return fail(res, 'Crawl the destination site first — the map needs somewhere to point.');
   const map = gen.buildRedirectMap(oldUrls, state.crawl.pages, { origin: state.crawl.origin });
   ok(res, { map, output: gen.redirectsToFormat(map, format, { origin: state.crawl.origin }) });
@@ -1514,10 +1556,11 @@ app.post('/api/generate/redirects/test', wrap(async (req, res) =>
 app.post('/api/generate/robots', wrap(async (req, res) =>
   ok(res, { robots: gen.generateRobots(req.body) })));
 
-app.get('/api/generate/sitemap', (req, res) => {
+app.get('/api/generate/sitemap', wrap(async (req, res) => {
+  await ensureCrawlLoaded();
   if (!state.crawl) return fail(res, 'Crawl the site first.', 404);
   ok(res, gen.generateSitemap(state.crawl.pages));
-});
+}));
 
 app.post('/api/generate/brief', wrap(async (req, res) => {
   const { clusterLabel, intent, targetUrl, businessGoal, fetchQuestions = true } = req.body;
@@ -1529,6 +1572,7 @@ app.post('/api/generate/brief', wrap(async (req, res) => {
 
 app.post('/api/prelaunch', wrap(async (req, res) => {
   const { stagingUrl, redirectPairs } = req.body;
+  await ensureCrawlLoaded();
   if (!state.crawl) return fail(res, 'Crawl the live site first.');
 
   let stagingProbe = null;
@@ -1560,7 +1604,8 @@ app.post('/api/prelaunch', wrap(async (req, res) => {
 
 /* ───────────────────────────────── exports ────────────────────────────────── */
 
-app.get('/api/export/:kind', (req, res) => {
+app.get('/api/export/:kind', wrap(async (req, res) => {
+  await ensureCrawlLoaded();
   if (!state.crawl) return fail(res, 'Nothing to export — run a crawl first.', 404);
   const { kind } = req.params;
   const send = (name, body, type = 'text/csv') => {
@@ -1584,7 +1629,7 @@ app.get('/api/export/:kind', (req, res) => {
     JSON.stringify({ crawledAt: state.crawl.crawledAt, origin: state.crawl.origin, stats: state.audit.stats, findings: state.audit.findings, pages: state.crawl.pages.map(slimPage) }, null, 2),
     'application/json');
   fail(res, `Unknown export: ${kind}`, 404);
-});
+}));
 
 /* ─────────────────────────────────── boot ─────────────────────────────────── */
 
@@ -1600,6 +1645,7 @@ function slimPage(p) {
     imagesMissingAlt: (p.images || []).filter((i) => !i.hasAltAttr || !String(i.alt).trim()).length,
     platform: p.platform, discoveredVia: p.discoveredVia, viewport: p.viewport, lang: p.lang,
     outboundCount: (p.links || []).filter((l) => l.resolved).length,
+    headers: p.headers || {},
   };
 }
 

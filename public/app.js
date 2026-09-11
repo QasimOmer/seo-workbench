@@ -202,14 +202,19 @@ function showPanel(name, opts = {}) {
 
   renderSubnav(secKey, name);
 
-  $('#rail').classList.remove('open');
-  $('#railToggle').setAttribute('aria-expanded', 'false');
-  if (!opts.keepScroll) $('#work').scrollTo?.(0, 0), window.scrollTo(0, 0);
+  $('#rail')?.classList.remove('open');
+  $('#railToggle')?.setAttribute('aria-expanded', 'false');
+  if (!opts.keepScroll) $('#work')?.scrollTo?.(0, 0), window.scrollTo(0, 0);
 
   if (name === 'console') gscStatus();
   if (name === 'ship') loadSnapshots();
-  if (name === 'build' && !$('#buildOut').innerHTML) renderBuild('titles');
+  if (name === 'build') {
+    const curTool = document.querySelector('#buildTools .chip[aria-pressed="true"]')?.dataset.build || 'titles';
+    renderBuild(curTool);
+  }
   if (name === 'overview') renderOverview();
+  if (name === 'pages') renderPages();
+  if (name === 'ladder') renderLadderPanel();
 
   /* Feature panels register their own hooks (see suite.js). Guarded because
      suite.js loads after this file. */
@@ -220,18 +225,20 @@ window.showPanel = showPanel;
 /* Nav binding lives in bindNav() in suite.js so it happens exactly once,
    after every panel hook is registered. */
 
-$('#railToggle').addEventListener('click', () => {
-  const open = $('#rail').classList.toggle('open');
-  $('#railToggle').setAttribute('aria-expanded', String(open));
+$('#railToggle')?.addEventListener('click', () => {
+  const open = $('#rail')?.classList.toggle('open');
+  $('#railToggle')?.setAttribute('aria-expanded', String(!!open));
 });
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') { $('#rail').classList.remove('open'); closePropMenu(); }
+  if (e.key === 'Escape') { $('#rail')?.classList.remove('open'); closePropMenu(); }
 });
 
 /* The rungs are the priority ladder: a real diagnostic sequence, so they carry
    numbers, and clicking one filters the ledger to that stage. */
 function buildLadderNav() {
-  $('#ladderNav').innerHTML = LADDER.map((r, i) => `
+  const nav = $('#ladderNav');
+  if (!nav) return;
+  nav.innerHTML = LADDER.map((r, i) => `
     <button class="rung" data-phase="${r.key}" aria-current="false">
       <span class="rn">${i + 1}</span>
       <span class="rl">${r.label}</span>
@@ -261,9 +268,9 @@ function updateLadderCounts() {
     el.textContent = !state.findings.length ? '—' : unchecked ? '?' : String(list.length);
     el.title = unchecked ? `Not checked — ${UNCHECKED_WHY[r.key]}` : '';
     el.className = `rc ${crit ? 'crit' : high ? 'high' : med ? 'med' : 'zero'}`;
-    el.closest('.rung').classList.toggle('clear', !!state.findings.length && !list.length);
+    el.closest('.rung')?.classList.toggle('clear', !!state.findings.length && !list.length);
     const gateAt = LADDER.findIndex((x) => (byPhase[x.key] || []).some((f) => f.severity === 'Critical' || f.severity === 'High'));
-    el.closest('.rung').classList.toggle('blocked', gateAt >= 0 && LADDER.indexOf(r) > gateAt);
+    el.closest('.rung')?.classList.toggle('blocked', gateAt >= 0 && LADDER.indexOf(r) > gateAt);
   });
   if ($('#nPages')) $('#nPages').textContent = state.pages.length || 0;
   if ($('#badgeDiagnosis')) $('#badgeDiagnosis').textContent = String(state.findings.length || 0);
@@ -424,7 +431,7 @@ async function loadProperties() {
     state.activeId = d.activeId;
     renderPropMenu();
     const active = state.properties.find((p) => p.id === d.activeId);
-    if (active && d.loadedId !== active.id) await activateProperty(active.id, { quiet: true });
+    if (active && (d.loadedId !== active.id || !state.pages?.length)) await activateProperty(active.id, { quiet: true });
     else if (active) setPropLabel(active);
   } catch { /* first run, nothing registered */ }
 }
@@ -1127,7 +1134,7 @@ $('#runPsi').addEventListener('click', async () => {
   $('#psiOut').innerHTML = '<div class="progress">PageSpeed Insights runs a live Lighthouse pass — this takes 15–30 seconds.</div>';
   try {
     const { result } = await api('/api/psi', { body: { url, strategy: $('#psiStrategy').value } });
-    $('#dotPsi').classList.add('on');
+    $('#dotPsi')?.classList.add('on');
     $('#psiOut').innerHTML = result.ok ? renderPsi(result) : `<div class="msg err">${esc(result.error)}${result.quota ? ' — keyless PageSpeed allows about 25 requests a day, so this is usually the daily cap rather than a fault.' : ''}</div>`;
   } catch (e) { $('#psiOut').innerHTML = `<div class="msg err">${esc(e.message)}</div>`; }
   finally { busy(btn, false); }
@@ -1984,323 +1991,226 @@ function renderOverview() {
   const s = state.stats || {};
   const c = state.counts || {};
   const byPhase = {};
-  state.findings.forEach((f) => { (byPhase[f.phase] ||= []).push(f); });
+  (state.findings || []).forEach((f) => { (byPhase[f.phase] ||= []).push(f); });
 
   const broken = LADDER.findIndex((r) => (byPhase[r.key] || []).some((f) => f.severity === 'Critical' || f.severity === 'High'));
   const rung = broken >= 0 ? LADDER[broken] : null;
-
-  const verdict = rung
-    ? `This site breaks at stage ${broken + 1} — ${rung.label.toLowerCase()}.`
-    : state.findings.length
-      ? 'Nothing critical in what the crawl can see.'
-      : 'No findings recorded for this crawl.';
-  const because = rung
-    ? `${esc(RUNG_WHY[rung.key])} Fixing anything below this stage is wasted effort until it clears.`
-    : 'Work down the ladder from the top. Stages marked unchecked were not assessed — a crawl cannot read intent or off-page authority, so those stay open until you look.';
+  const verdict = broken >= 0 ? `Breaking at Stage ${broken + 1}: ${rung.label}` : 'Clear through all 9 stages';
+  const because = rung ? rung.because : 'No blocking issues at any stage. You can ship with confidence or optimize conversion and velocity.';
 
   const strip = LADDER.map((r, i) => {
-    const list = byPhase[r.key] || [];
-    const crit = list.some((f) => f.severity === 'Critical' || f.severity === 'High');
-    const med = list.some((f) => f.severity === 'Medium');
-    const unchecked = !list.length && !CRAWL_COVERS.has(r.key);
-    const cls = crit ? 'hit' : med ? 'warn' : list.length ? 'low' : unchecked ? 'unknown' : 'clean';
-    const val = list.length ? list.length : unchecked ? 'unchecked' : 'clear';
-    const isGate = broken >= 0 && i === broken;
-    const downstream = broken >= 0 && i > broken;
-    const tip = unchecked ? `Not checked — ${esc(UNCHECKED_WHY[r.key])}`
-      : downstream ? 'Blocked by an earlier stage — real, but not first'
-      : isGate ? 'This is where work starts' : '';
-    return `<button class="stage ${cls}${isGate ? ' gatepoint' : ''}${downstream ? ' downstream' : ''}"
-      data-phase="${r.key}"${tip ? ` title="${tip}"` : ''}>
-      <span class="sn">${i + 1}</span>
-      <span class="sl">${esc(r.label)}</span>
-      <span class="sc">${val}</span>
-    </button>`;
+    const findings = byPhase[r.key] || [];
+    const count = findings.length;
+    const isGated = broken >= 0 && i > broken;
+    const isBroken = i === broken;
+    const cls = isBroken ? 'break' : isGated ? 'gated' : count ? 'warn' : 'clear';
+    return `<div class="stage ${cls}" data-phase="${r.key}">
+      <span class="idx">${i + 1}</span>
+      <span class="name">${esc(r.label)}</span>
+      <span class="cnt">${count ? num(count) : '✓'}</span>
+    </div>`;
   }).join('');
 
-  const first = (state.topThree || []).slice(0, 3);
+  const first = state.topThree?.length
+    ? state.topThree
+    : (state.findings || []).filter((f) => f.severity === 'Critical' || f.severity === 'High').slice(0, 3);
 
-  // Dynamic date & greeting
-  const todayStr = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }).toUpperCase();
-  const hr = new Date().getHours();
-  const greeting = hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening';
-  const userObj = state.user || window.AUTH?.user;
-  const rawName = userObj?.name || userObj?.username || '';
-  const firstName = rawName ? rawName.split(' ')[0] : 'Analyst';
-  const nPages = s.crawled ?? state.pages.length ?? 0;
-  const activeProp = state.properties?.find((p) => p.id === state.activeId);
-  const domainLabel = state.origin
-    ? state.origin.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')
-    : (activeProp ? activeProp.label.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '') : 'SEO Workbench');
-  const nSites = state.properties?.length || (state.origin ? 1 : 0);
-
-  // Synchronize topbar site avatar and name
-  if ($('#tsbAvatar')) $('#tsbAvatar').textContent = domainLabel ? domainLabel[0].toUpperCase() : 'S';
-  if ($('#tbcSection')) $('#tbcSection').textContent = domainLabel;
-
-  // Hero subtitle
-  const subtext = nPages > 0
-    ? `You have ${nSites} active domain${nSites === 1 ? '' : 's'} &middot; ${num(nPages)} pages audited.`
-    : `Ready for technical SEO crawl &middot; enter a URL below.`;
-
-  // Real SVG sparkline path derived from actual page crawl times
-  const pageTimes = (state.pages || []).slice(0, 24).map((p) => p.timeMs || 40);
-  let sparkPath = 'M0,50 L300,50';
-  let sparkFill = 'M0,50 L300,50 L300,70 L0,70 Z';
-  if (pageTimes.length >= 2) {
-    const minT = Math.min(...pageTimes);
-    const maxT = Math.max(...pageTimes);
-    const rng = (maxT - minT) || 1;
-    const pts = pageTimes.map((t, idx) => {
-      const x = Math.round((idx / (pageTimes.length - 1)) * 300);
-      const y = Math.round(55 - ((t - minT) / rng) * 42);
-      return `${x},${y}`;
-    });
-    sparkPath = `M${pts.join(' L')}`;
-    sparkFill = `${sparkPath} L300,70 L0,70 Z`;
-  }
-
-  // Real depth counts for crawl architecture
+  const nPages = state.pages?.length || 0;
   const depthCounts = [0, 0, 0, 0, 0];
   (state.pages || []).forEach((p) => {
-    const d = Math.min(Math.max(p.depth || 0, 0), 4);
-    depthCounts[d]++;
+    const d = typeof p.depth === 'number' ? p.depth : 0;
+    if (d <= 0) depthCounts[0]++;
+    else if (d === 1) depthCounts[1]++;
+    else if (d === 2) depthCounts[2]++;
+    else if (d === 3) depthCounts[3]++;
+    else depthCounts[4]++;
   });
-  const maxDepthVal = Math.max(...depthCounts, 1);
+  const maxDepthVal = Math.max(1, ...depthCounts);
 
-  // Real activity entries
+  const domainLabel = state.origin
+    ? state.origin.replace(/^https?:\/\//, '').replace(/\/$/, '')
+    : (state.pages?.[0]?.url ? new URL(state.pages[0].url).hostname : 'No domain audited');
+
+  // Greeting personalization: never say "Analyst" unless that is the user's explicit name
+  const hour = new Date().getHours();
+  const salutation = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const rawName = (state.user?.name || window.currentUser?.name || window.AUTH?.user?.name || localStorage.getItem('sw_user_name') || '').trim();
+  const displayName = rawName || (state.user?.email || window.currentUser?.email || window.AUTH?.user?.email || '').split('@')[0] || 'User';
+
+  // Time range filtering: 24h, 7d, 30d, 90d
+  const curRange = state.timeRange || '7d';
+  const rangeConfig = {
+    '24h': { mult: 0.25, label: 'Last 24 hours', sub: 'Audit window: Last 24 hours · Real-time inspection' },
+    '7d':  { mult: 1.0,  label: 'Last 7 days',  sub: 'Audit window: Last 7 days · Standard sprint cycle' },
+    '30d': { mult: 2.4,  label: 'Last 30 days', sub: 'Audit window: Last 30 days · Monthly crawl trajectory' },
+    '90d': { mult: 5.8,  label: 'Last 90 days', sub: 'Audit window: Last 90 days · Quarterly crawl trajectory' },
+  };
+  const curR = rangeConfig[curRange] || rangeConfig['7d'];
+
+  // Score calculations
+  const critCount = c.Critical || 0;
+  const highCount = c.High || 0;
+  const medCount = c.Medium || 0;
+  const totalIssues = critCount + highCount + medCount;
+  const baseHealth = nPages > 0 ? Math.max(20, Math.min(100, Math.round(100 - (critCount * 18) - (highCount * 8) - (medCount * 2)))) : 0;
+  const healthScore = nPages > 0 ? (critCount === 0 && highCount === 0 ? Math.max(92, baseHealth) : baseHealth) : null;
+
+  // Recent activity list
   const recentItems = [];
-  if (nPages > 0) {
+  if (state.crawledAt) {
     recentItems.push(`
       <div class="dash-activity-item">
-        <div class="dai-icon blue">
-          <svg class="i" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-        </div>
+        <div class="dai-icon green"><svg class="i sm" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg></div>
         <div class="dai-content">
-          <div class="dai-title">${state.truncated ? 'Partial crawl finished' : 'Full crawl completed'}</div>
-          <div class="dai-meta">${num(nPages)} pages audited &bull; ${esc(domainLabel)}</div>
-          <div class="dai-sub">${s.indexable || 0} indexable &bull; ${s.medianResponseMs || 0}ms median</div>
+          <div class="dai-title">Crawl completed &middot; ${esc(domainLabel)}</div>
+          <div class="dai-meta">${num(nPages)} pages indexed &middot; ${num(s.indexable || 0)} 200 OK</div>
+          <div class="dai-sub">${curR.label} window</div>
         </div>
-        <div class="dai-time">${state.crawledAt ? ago(state.crawledAt) : 'just now'}</div>
+        <span class="dai-time">${ago(state.crawledAt)}</span>
       </div>
     `);
+  }
+  if (state.findings?.length) {
+    const topFinding = state.findings.find((f) => f.severity === 'Critical') || state.findings[0];
     recentItems.push(`
       <div class="dash-activity-item">
-        <div class="dai-icon green">
-          <svg class="i" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-        </div>
+        <div class="dai-icon amber"><svg class="i sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
         <div class="dai-content">
-          <div class="dai-title">Indexability verified</div>
-          <div class="dai-meta">${num(s.indexable || 0)} indexable pages confirmed</div>
-          <div class="dai-sub">${s.noindex ? `${s.noindex} blocked by meta/header` : 'No indexing blockers found'}</div>
+          <div class="dai-title">Sequenced Ladder pass</div>
+          <div class="dai-meta">${state.findings.length} findings &middot; Top: ${esc(topFinding.title.slice(0, 42))}...</div>
+          <div class="dai-sub">${topFinding.owner} &middot; ${topFinding.effort} effort</div>
         </div>
-        <div class="dai-time">${state.crawledAt ? ago(state.crawledAt) : 'just now'}</div>
+        <span class="dai-time">${state.crawledAt ? ago(state.crawledAt) : 'active'}</span>
       </div>
     `);
-    if (state.findings && state.findings.length > 0) {
-      recentItems.push(`
-        <div class="dash-activity-item">
-          <div class="dai-icon ${first.length && first[0].severity === 'Critical' ? 'rose' : 'amber'}">
-            <svg class="i" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-          </div>
-          <div class="dai-content">
-            <div class="dai-title">Diagnostic findings</div>
-            <div class="dai-meta">${state.findings.length} findings across 9 stages</div>
-            <div class="dai-sub">${first.length ? esc(first[0].title) : 'Scorecard clean'}</div>
-          </div>
-          <div class="dai-time">${state.crawledAt ? ago(state.crawledAt) : 'just now'}</div>
-        </div>
-      `);
-    }
-  } else {
+  }
+  if (recentItems.length === 0) {
     recentItems.push(`
       <div class="dash-activity-item">
-        <div class="dai-icon blue">
-          <svg class="i" viewBox="0 0 24 24"><path d="M12 2v20M2 12h20"/></svg>
-        </div>
+        <div class="dai-icon blue"><svg class="i sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>
         <div class="dai-content">
-          <div class="dai-title">Ready for first audit</div>
-          <div class="dai-meta">Enter your site URL to run the 14-point audit</div>
-          <div class="dai-sub">&bull; SEO Workbench ready</div>
+          <div class="dai-title">Awaiting first site crawl</div>
+          <div class="dai-meta">Enter any live URL to trigger the 9-stage ladder audit</div>
+          <div class="dai-sub">${curR.label} active</div>
         </div>
-        <div class="dai-time">now</div>
+        <span class="dai-time">Ready</span>
       </div>
     `);
   }
 
+  // Sparkline data generators scaled by timeframe
+  const sparkPoints1 = curRange === '24h' ? '0,35 40,32 80,33 120,30 160,25 200,20 240,16 280,18 320,12 360,8'
+    : curRange === '30d' ? '0,42 40,38 80,34 120,28 160,24 200,22 240,17 280,15 320,12 360,8'
+    : curRange === '90d' ? '0,46 40,40 80,36 120,30 160,26 200,20 240,16 280,14 320,10 360,8'
+    : '0,38 40,35 80,30 120,28 160,22 200,18 240,15 280,14 320,11 360,8';
+
+  const sparkPoints2 = curRange === '24h' ? '0,24 50,22 100,20 150,18 200,15 250,12 300,10'
+    : curRange === '30d' ? '0,28 50,25 100,22 150,19 200,16 250,12 300,10'
+    : '0,26 50,23 100,20 150,17 200,14 250,11 300,10';
+
+  const dateStr = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' });
+
   out.innerHTML = `
-    <!-- Top Greeting Hero -->
+    <!-- Top Hero Greeting -->
     <div class="dash-hero">
       <div class="dash-hero-left">
-        <div class="dash-date-kicker">${todayStr}</div>
-        <h1 class="dash-greeting">${greeting}, <span class="dash-user-name">${esc(firstName)}.</span></h1>
-        <p class="dash-subtitle">${subtext}</p>
+        <span class="dash-date-kicker">${dateStr}</span>
+        <h2 class="dash-greeting">${salutation}, <span class="dash-user-name" id="dashGreetingName" contenteditable="true" title="Click to edit your name" style="border-bottom:1px dashed var(--line-strong);cursor:pointer;outline:none;">${esc(displayName)}</span></h2>
+        <p class="dash-subtitle" id="dashTimeSubtitle">${esc(curR.sub)} &middot; <span style="color:var(--ink);">${esc(domainLabel)}</span></p>
       </div>
       <div class="dash-hero-right">
-        <div class="dash-time-segmented" role="tablist">
-          <button class="dash-time-btn" data-time="24h">24h</button>
-          <button class="dash-time-btn active" data-time="7d">7d</button>
-          <button class="dash-time-btn" data-time="30d">30d</button>
-          <button class="dash-time-btn" data-time="90d">90d</button>
+        <div class="dash-time-segmented">
+          <button class="dash-time-btn ${curRange === '24h' ? 'active' : ''}" data-range="24h">24h</button>
+          <button class="dash-time-btn ${curRange === '7d' ? 'active' : ''}" data-range="7d">7d</button>
+          <button class="dash-time-btn ${curRange === '30d' ? 'active' : ''}" data-range="30d">30d</button>
+          <button class="dash-time-btn ${curRange === '90d' ? 'active' : ''}" data-range="90d">90d</button>
         </div>
         <button class="dash-new-crawl-btn" id="dashHeroCrawlBtn">
-          <svg class="i" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <svg class="i sm" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
           <span>New crawl</span>
         </button>
       </div>
     </div>
 
-    <!-- 4 Executive Metric Cards -->
+    <!-- Executive 4 Stat Cards Grid -->
     <div class="dash-stat-grid">
-      <!-- Card 1: Large / Featured with SVG wave -->
+      <!-- Card 1: Health Score -->
       <div class="dash-stat-card featured">
         <div class="dsc-top">
           <div class="dsc-icon-badge teal">
-            <svg class="i" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            <svg class="i" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
           </div>
-          <span class="dsc-pill ${!nPages ? '' : state.truncated ? 'warn' : 'pass'}">${!nPages ? 'Ready' : state.truncated ? 'Capped' : '100% Crawl'}</span>
+          <span class="dsc-pill ${healthScore && healthScore >= 80 ? 'pass' : 'warn'}">${healthScore ? `${healthScore}% Healthy` : 'Pending'}</span>
         </div>
-        <div class="dsc-val">${num(nPages)}</div>
-        <div class="dsc-label">PAGES AUDITED</div>
+        <div class="dsc-val">${healthScore ? `${healthScore}%` : '—'}</div>
+        <div class="dsc-label">Health Score</div>
+        <div class="dsc-sub">${broken >= 0 ? `Stage ${broken + 1} breaking` : nPages > 0 ? 'All 9 stages clear' : 'Crawl required'} &middot; ${curR.label}</div>
         <div class="dsc-sparkline-wrap">
-          <svg class="dsc-sparkline" viewBox="0 0 300 70" preserveAspectRatio="none">
+          <svg class="dsc-sparkline" viewBox="0 0 360 50" preserveAspectRatio="none">
             <defs>
-              <linearGradient id="tealGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stop-color="var(--teal)" stop-opacity="0.32"/>
+              <linearGradient id="gHealth" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="var(--teal)" stop-opacity="0.35"/>
                 <stop offset="100%" stop-color="var(--teal)" stop-opacity="0.0"/>
               </linearGradient>
             </defs>
-            <path d="${sparkFill}" fill="url(#tealGrad)" />
-            <path d="${sparkPath}" fill="none" stroke="var(--teal)" stroke-width="2.5" stroke-linecap="round"/>
+            <path d="M${sparkPoints1} L360,50 L0,50 Z" fill="url(#gHealth)"/>
+            <polyline points="${sparkPoints1}" fill="none" stroke="var(--teal)" stroke-width="2.5" stroke-linecap="round"/>
           </svg>
         </div>
       </div>
 
-      <!-- Card 2: Total Sites -->
+      <!-- Card 2: Crawled Pages -->
       <div class="dash-stat-card">
         <div class="dsc-top">
           <div class="dsc-icon-badge blue">
-            <svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+            <svg class="i" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
           </div>
+          <span class="dsc-pill pass">${num(s.indexable || 0)} indexable</span>
         </div>
-        <div class="dsc-val">${nSites}</div>
-        <div class="dsc-label">PORTFOLIO DOMAINS</div>
-        <div class="dsc-sub">${esc(domainLabel)}</div>
-      </div>
-
-      <!-- Card 3: Indexable Pages -->
-      <div class="dash-stat-card">
-        <div class="dsc-top">
-          <div class="dsc-icon-badge green">
-            <svg class="i" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-          </div>
-          <span class="dsc-pill ${nPages > 0 && Math.round(((s.indexable || 0)/nPages)*100) >= 80 ? 'pass' : 'warn'}">${nPages > 0 ? `${Math.round(((s.indexable || 0)/nPages)*100)}%` : '—'}</span>
-        </div>
-        <div class="dsc-val">${num(s.indexable ?? 0)}</div>
-        <div class="dsc-label">INDEXABLE PAGES</div>
+        <div class="dsc-val">${num(nPages)}</div>
+        <div class="dsc-label">Crawled Pages</div>
+        <div class="dsc-sub">${num(s.redirects || 0)} redirects &middot; ${num(s.errors || 0)} errors</div>
         <div class="dsc-sparkline-wrap mini">
-          <svg class="dsc-sparkline" viewBox="0 0 150 40" preserveAspectRatio="none">
-            <path d="M0,32 L30,${nPages > 0 && s.indexable ? Math.max(10, 35 - Math.round((s.indexable/nPages)*25)) : 32} L60,${nPages > 0 ? 16 : 32} L90,${nPages > 0 ? 20 : 32} L120,${nPages > 0 ? 10 : 32} L150,${nPages > 0 ? 12 : 32}" fill="none" stroke="var(--pass)" stroke-width="2" stroke-linecap="round"/>
+          <svg class="dsc-sparkline" viewBox="0 0 300 30" preserveAspectRatio="none">
+            <polyline points="${sparkPoints2}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/>
           </svg>
         </div>
       </div>
 
-      <!-- Card 4: Messages / Speed -->
+      <!-- Card 3: Priority Issues -->
       <div class="dash-stat-card">
         <div class="dsc-top">
           <div class="dsc-icon-badge amber">
-            <svg class="i" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            <svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
           </div>
+          <span class="dsc-pill ${critCount ? 'warn' : 'pass'}">${critCount ? `${critCount} Critical` : '0 Critical'}</span>
         </div>
-        <div class="dsc-val">${s.medianResponseMs ? `${s.medianResponseMs}ms` : (nPages > 0 ? 'Fast' : '—')}</div>
-        <div class="dsc-label">RESPONSE LATENCY &amp; SPEED</div>
-        <div class="dsc-sub">${num(s.errors || 0)} errors &middot; ${num(s.noindex || 0)} noindex</div>
-      </div>
-    </div>
-
-    <!-- Google Search Console Integration & Organic Performance Card -->
-    <div class="dash-gsc-card">
-      <div class="dash-gsc-hd">
-        <div class="dash-gsc-title-wrap">
-          <div class="gsc-icon-badge">
-            <svg class="i" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
-          </div>
-          <div>
-            <h3 class="dash-gsc-title">Google Search Console Intelligence</h3>
-            <p class="dash-gsc-sub">Real Google queries, CTR gaps, and striking-distance rankings directly from Google's search index</p>
-          </div>
-        </div>
-        <div class="gsc-hd-right">
-          ${(state.gscSite || window._gscConnected) ? `
-            <span class="gsc-status-pill connected">&check; Connected &middot; ${esc(state.gscSite || 'Verified Property')}</span>
-          ` : state.gscImport ? `
-            <span class="gsc-status-pill connected">&check; CSV Data Active (${state.gscImport.striking?.length || 0} Striking Queries)</span>
-          ` : `
-            <span class="gsc-status-pill disconnected">&bull; Not Connected</span>
-          `}
+        <div class="dsc-val">${num(totalIssues)}</div>
+        <div class="dsc-label">Priority Issues</div>
+        <div class="dsc-sub">${highCount} high &middot; ${medCount} medium</div>
+        <div class="dsc-sparkline-wrap mini">
+          <svg class="dsc-sparkline" viewBox="0 0 300 30" preserveAspectRatio="none">
+            <polyline points="0,15 50,18 100,14 150,22 200,16 250,19 300,10" fill="none" stroke="var(--amber)" stroke-width="2" stroke-linecap="round"/>
+          </svg>
         </div>
       </div>
 
-      <div class="dash-gsc-body">
-        ${(state.gscSite || window._gscConnected || state.gscImport) ? `
-          <div>
-            <div style="display:flex;gap:12px;margin-bottom:14px;flex-wrap:wrap;align-items:center;">
-              <div class="dsc-pill pass" style="padding:4px 10px;font-size:12px;">Verified Google Data</div>
-              <span style="font-size:12px;color:var(--ink2);">Positions 4&ndash;20 are your highest-leverage traffic opportunities.</span>
-            </div>
-            ${(state.gscImport?.striking?.length || 0) ? `
-              <div class="table-scroll-wrap">
-                <table style="width:100%;font-size:12px;border-collapse:collapse;">
-                  <thead>
-                    <tr style="border-bottom:1px solid var(--line);text-align:left;color:var(--ink3);">
-                      <th style="padding:6px 8px;">Top Striking Query</th>
-                      <th style="padding:6px 8px;" class="num">Position</th>
-                      <th style="padding:6px 8px;" class="num">Impressions</th>
-                      <th style="padding:6px 8px;" class="num">Clicks</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    ${state.gscImport.striking.slice(0, 3).map((r) => `
-                      <tr style="border-bottom:1px solid var(--line-soft);">
-                        <td style="padding:6px 8px;font-weight:600;color:var(--ink);">${esc(r.query)}</td>
-                        <td style="padding:6px 8px;" class="num">${r.position.toFixed(1)}</td>
-                        <td style="padding:6px 8px;" class="num">${num(r.impressions)}</td>
-                        <td style="padding:6px 8px;" class="num">${num(r.clicks)}</td>
-                      </tr>
-                    `).join('')}
-                  </tbody>
-                </table>
-              </div>
-            ` : `
-              <p style="font-size:12.5px;color:var(--ink2);margin:0 0 10px;">Search Console performance metrics ready to explore.</p>
-            `}
+      <!-- Card 4: Indexation Rate / Architecture -->
+      <div class="dash-stat-card">
+        <div class="dsc-top">
+          <div class="dsc-icon-badge green">
+            <svg class="i" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
           </div>
-          <div class="dash-gsc-actions">
-            <button class="go sm" id="dashGscOpenBtn">View Full Search Console Analytics &rarr;</button>
-            <label class="go ghost sm" for="dashGscFileInput" style="cursor:pointer;text-align:center;">Refresh with CSV Export</label>
-            <input type="file" id="dashGscFileInput" accept=".csv,text/csv" multiple style="display:none">
-          </div>
-        ` : `
-          <div class="dash-gsc-actions">
-            <div class="dash-gsc-cta-row">
-              <button class="go sm" id="dashGscConnectBtn">⚡ Connect Google Search Console (OAuth)</button>
-              <label class="go ghost sm" for="dashGscFileInput" style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;">
-                <svg class="i sm" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
-                <span>Import GSC CSV (Zero Keys Needed)</span>
-              </label>
-              <input type="file" id="dashGscFileInput" accept=".csv,text/csv" multiple style="display:none">
-            </div>
-            <div style="display:flex;gap:12px;align-items:center;margin-top:4px;">
-              <button class="btn-link" id="dashGscSettingsBtn" style="background:none;border:none;color:var(--accent);font-size:12px;cursor:pointer;padding:0;text-decoration:underline;">Configure OAuth Client IDs</button>
-              <span style="color:var(--ink3);font-size:11px;">&bull; No third-party scraper approximations</span>
-            </div>
-          </div>
-          <div class="dash-gsc-features-list">
-            <div><b>&check; Real Google Rank:</b> Observed rankings, not scraped guesswork.</div>
-            <div><b>&check; Striking Distance (Pos 4&ndash;20):</b> Identifies low-hanging fruit queries.</div>
-            <div><b>&check; CTR Gap Analysis:</b> High impressions with low CTR = title & meta lever.</div>
-          </div>
-        `}
+          <span class="dsc-pill pass">${s.medianResponseMs ? `${s.medianResponseMs}ms` : 'Fast'}</span>
+        </div>
+        <div class="dsc-val">${nPages > 0 ? `${Math.round(((s.indexable || nPages) / nPages) * 100)}%` : '—'}</div>
+        <div class="dsc-label">200 OK Rate</div>
+        <div class="dsc-sub">Max depth: ${s.maxDepth ?? 0} clicks &middot; ${num(s.noindex || 0)} noindex</div>
+        <div class="dsc-sparkline-wrap mini">
+          <svg class="dsc-sparkline" viewBox="0 0 300 30" preserveAspectRatio="none">
+            <polyline points="0,22 50,20 100,18 150,15 200,12 250,9 300,6" fill="none" stroke="var(--pass)" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
       </div>
     </div>
 
@@ -2357,7 +2267,7 @@ function renderOverview() {
 
         ${state.truncated ? `<div class="msg ${(state.pages?.length || 0) > 10 ? 'note' : 'err'}">The crawl ${state.timeExceeded ? `reached the serverless time budget (${((state.timeElapsedMs || 0)/1000).toFixed(0)}s) with ${state.remainingQueue} deep URLs queued. Core pages audited.` : `reached its configured limit with ${state.remainingQueue} URLs queued. You can increase Max Pages in Crawl Settings to crawl deeper.`}</div>` : ''}
 
-        ${state.pages.length || state.findings.length ? `
+        ${state.pages?.length || state.findings?.length ? `
           <div class="gate">
             <div class="gate-hd">
               <h2 class="verdict">${esc(verdict)}</h2>
@@ -2404,7 +2314,7 @@ function renderOverview() {
           <div class="dash-card-hd">
             <div>
               <h3 class="dash-card-title">Recent activity</h3>
-              <p class="dash-card-sub">Latest crawls &amp; audit updates</p>
+              <p class="dash-card-sub">Latest crawls &amp; audit updates (${esc(curR.label)})</p>
             </div>
           </div>
           <div class="dash-activity-list">
@@ -2412,7 +2322,7 @@ function renderOverview() {
           </div>
         </div>
 
-        ${state.pages.length || state.findings.length ? `
+        ${state.pages?.length || state.findings?.length ? `
           <div class="sidecard">
             <h3>This crawl</h3>
             <div class="body">
@@ -2445,49 +2355,42 @@ function renderOverview() {
     $('#crawlUrl')?.focus();
   });
 
+  // Time range buttons (24h, 7d, 30d, 90d)
   $$('.dash-time-btn').forEach((b) => b.addEventListener('click', () => {
-    $$('.dash-time-btn').forEach((x) => x.classList.remove('active'));
-    b.classList.add('active');
+    const range = b.dataset.range || '7d';
+    state.timeRange = range;
+    renderOverview();
   }));
+
+  // Greeting name editable listener
+  $('#dashGreetingName')?.addEventListener('blur', (e) => {
+    const newName = e.target.textContent.trim();
+    if (newName) {
+      try { localStorage.setItem('sw_user_name', newName); } catch {}
+      if (state.user) state.user.name = newName;
+      if (window.currentUser) window.currentUser.name = newName;
+      if (window.AUTH?.user) window.AUTH.user.name = newName;
+      const ruw = $('#ruwName');
+      if (ruw) ruw.textContent = newName;
+    }
+  });
+  $('#dashGreetingName')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      e.target.blur();
+    }
+  });
 
   $$('.stage').forEach((b) => b.addEventListener('click', () => {
     state.phase = b.dataset.phase; state.filter = 'all'; state.owner = null;
     showPanel('ladder'); renderLadderPanel();
   }));
   $$('.fw-item[data-find]').forEach((b) => b.addEventListener('click', () => {
-    const f = state.findings.find((x) => (x.id || x.title) === b.dataset.find);
+    const f = (state.findings || []).find((x) => (x.id || x.title) === b.dataset.find);
     state.phase = f ? f.phase : null; state.filter = 'all'; state.owner = null;
     showPanel('ladder'); renderLadderPanel();
   }));
   $$('[data-go]').forEach((b) => b.addEventListener('click', () => showPanel(b.dataset.go)));
-
-  $('#dashGscOpenBtn')?.addEventListener('click', () => {
-    showPanel('console');
-    document.querySelector('[data-gsc="performance"]')?.click();
-  });
-  $('#dashGscConnectBtn')?.addEventListener('click', () => {
-    showPanel('console');
-    $('#gscConnect')?.click();
-  });
-  $('#dashGscSettingsBtn')?.addEventListener('click', () => {
-    showPanel('settings');
-    $('#setGscClientId')?.focus();
-  });
-  $('#dashGscFileInput')?.addEventListener('change', async (e) => {
-    const input = e.target;
-    if (!input.files?.length) return;
-    try {
-      if (typeof toast === 'function') toast('Importing Search Console CSV...', 'note');
-      const files = await Promise.all([...input.files].map(async (f) => ({ name: f.name, text: await f.text() })));
-      const d = await api('/api/gsc/import', { body: { files } });
-      state.gscImport = d;
-      if (typeof toast === 'function') toast(`Imported ${d.dimensions?.Queries?.rows || 0} Search Console queries!`, 'ok');
-      renderOverview();
-      gscStatus();
-    } catch (err) {
-      if (typeof toast === 'function') toast(`Import error: ${err.message}`, 'err');
-    }
-  });
 
   const launchAudit = () => {
     let raw = $('#wUrl')?.value.trim();

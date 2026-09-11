@@ -479,7 +479,7 @@ async function renderProgram() {
       renderProgram();
     });
     $$('[data-task]').forEach((cb) => cb.addEventListener('change', async () => {
-      cb.closest('.task').classList.toggle('done', cb.checked);
+      cb.closest('.task')?.classList.toggle('done', cb.checked);
       try { await api('/api/program/toggle', { body: { findingId: cb.dataset.task } }); } catch {}
     }));
   } catch (e) {
@@ -1773,6 +1773,12 @@ async function initFirebase() {
 function setSessionUser(u, token) {
   AUTH.user = u;
   window.currentUser = u;
+  if (typeof state !== 'undefined') {
+    state.user = u;
+  }
+  if (u?.name) {
+    try { localStorage.setItem('sw_user_name', u.name); } catch {}
+  }
   if (token) {
     try { localStorage.setItem('sw_session_token', token); } catch {}
   }
@@ -1786,6 +1792,9 @@ function setSessionUser(u, token) {
     const dlg = $('#authModal');
     if (dlg && typeof dlg.close === 'function' && dlg.open) dlg.close();
   }
+  if (typeof renderOverview === 'function') {
+    renderOverview();
+  }
 }
 
 async function authBoot() {
@@ -1796,6 +1805,12 @@ async function authBoot() {
   } catch { return; }
   AUTH.enabled = st.enabled; AUTH.user = st.user; AUTH.transport = st.transport;
   window.currentUser = st.user;
+  if (typeof state !== 'undefined' && st.user) {
+    state.user = st.user;
+  }
+  if (st.user?.name) {
+    try { localStorage.setItem('sw_user_name', st.user.name); } catch {}
+  }
   window.can = (perm) => {
     if (!AUTH.enabled) return true;
     if (!window.currentUser) return false;
@@ -3184,7 +3199,7 @@ async function renderHealth2() {
   out.innerHTML = '<div class="progress">Checking each layer in order — network first, then the APIs. Up to a minute.</div>';
   try {
     const d = await api('/api/diagnostics');
-    $('#dotHealth').classList.toggle('on', d.healthy);
+    $('#dotHealth')?.classList.toggle('on', d.healthy);
     const LAYERS = { network: 'Network', google: 'Google APIs', ai: 'Text & images', free: 'Free endpoints', local: 'On this machine', clarity: 'Behaviour' };
 
     out.innerHTML = `
