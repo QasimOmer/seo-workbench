@@ -585,7 +585,8 @@ async function gscStatus() {
   const s = await api('/api/gsc/status');
   $('#dotGsc').classList.toggle('on', s.connected);
   if (!s.configured) {
-    $('#gscAuth').innerHTML = `<div class="msg">Search Console is not configured. Create an OAuth client (Web application) in Google Cloud Console, enable the Search Console API, and add <code>GSC_CLIENT_ID</code> and <code>GSC_CLIENT_SECRET</code> to <code>.env</code> (or under <b>Setup &amp; keys</b> in the sidebar). Set the redirect URI to <code>http://localhost:4321/api/gsc/callback</code>. Full steps are in the README.</div>`;
+    const cbUri = `${window.location.origin}/api/gsc/callback`;
+    $('#gscAuth').innerHTML = `<div class="msg">Search Console is not configured. Create an OAuth client (Web application) in Google Cloud Console, enable the Search Console API, and add <code>GSC_CLIENT_ID</code> and <code>GSC_CLIENT_SECRET</code> to <code>.env</code> (or under <b>Setup &amp; keys</b> in the sidebar). Set the redirect URI to <code>${cbUri}</code>. Full steps are in the README.</div>`;
     return;
   }
   if (!s.connected) {

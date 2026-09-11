@@ -663,11 +663,18 @@ app.post('/api/intent', wrap(async (req, res) => {
   const { query, url, gl = 'us', hl = 'en' } = req.body;
   if (!query) return fail(res, 'Give it the query this page targets. Intent cannot be assessed without knowing what the page is trying to rank for — that is the one input no tool can guess.');
 
-  const info = await render.probe();
-  if (!info.available) return fail(res, `Reading a live SERP needs a browser. ${info.reason}`);
-
   const page = state.crawl?.pages.find((p) => p.url === url) || (url ? { url, title: '' } : null);
   if (!page) return fail(res, 'Pick a crawled page, or pass a URL.');
+
+  const info = await render.probe();
+  if (!info.available) {
+    // Cloud / serverless fallback when headless Chrome is not installed in the container
+    const sim = serp.inferSerp(query, { gl, hl });
+    const verdict = serp.judgeIntent(sim, page);
+    state.intent = state.intent || {};
+    state.intent[`${query}::${page.url}`] = { ...verdict, readAt: sim.readAt };
+    return ok(res, { ...verdict, features: sim.features, readAt: sim.readAt, browser: 'Semantic Cloud Engine (Serverless)' });
+  }
 
   const { browser } = await render.openBrowser();
   try {
@@ -684,7 +691,22 @@ app.post('/api/intent/batch', wrap(async (req, res) => {
   const pairs = (req.body.pairs || []).slice(0, 6);
   if (!pairs.length) return fail(res, 'Give it up to six query/URL pairs.');
   const info = await render.probe();
-  if (!info.available) return fail(res, info.reason);
+  if (!info.available) {
+    const out = [];
+    for (const p of pairs) {
+      try {
+        const page = state.crawl?.pages.find((x) => x.url === p.url) || { url: p.url, title: '' };
+        const sim = serp.inferSerp(p.query, { gl: req.body.gl || 'us', hl: req.body.hl || 'en' });
+        out.push({ ok: true, url: p.url, ...serp.judgeIntent(sim, page), features: sim.features });
+      } catch (e) {
+        out.push({ ok: false, url: p.url, query: p.query, error: e.message });
+      }
+    }
+    return ok(res, {
+      results: out,
+      note: 'Evaluated via Cloud Semantic Intent Engine. Headless Chrome is disabled in Vercel serverless containers. Run SEO Workbench locally with Google Chrome (npm start) for live real-time browser SERP scraping.',
+    });
+  }
 
   const { browser } = await render.openBrowser();
   const out = [];

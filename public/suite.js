@@ -2372,7 +2372,7 @@ async function renderSettingsHub() {
             </div>
 
             <div class="settings-card-ft">
-              <div class="sc-ft-info">Redirect URI: <code>http://localhost:4321/api/gsc/callback</code></div>
+              <div class="sc-ft-info">Redirect URI: <code id="gscRedirectUriVal">${window.location.origin}/api/gsc/callback</code> <button type="button" class="btn-copy-uri" style="background:transparent;border:none;cursor:pointer;color:var(--accent);font-size:11px;margin-left:4px" onclick="navigator.clipboard.writeText('${window.location.origin}/api/gsc/callback');this.innerText='Copied!';setTimeout(()=>this.innerText='Copy',2000)">Copy</button></div>
               <div class="sc-ft-actions">
                 ${canManage ? `<button class="go sm" id="btnSaveGscKeys">Save Google Keys</button>` : ''}
               </div>
