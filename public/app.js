@@ -376,6 +376,8 @@ async function activateProperty(id, opts = {}) {
       state.pages = d.pages || []; state.findings = d.findings || [];
       state.stats = d.stats; state.counts = d.counts || {}; state.topThree = d.topThree || [];
       state.origin = d.origin; state.crawledAt = d.crawledAt;
+      state.truncated = d.truncated || false; state.remainingQueue = d.remainingQueue || 0;
+      state.timeExceeded = d.timeExceeded || false; state.timeElapsedMs = d.timeElapsedMs || 0;
       renderPages();
     }
     renderPropMenu(); updateLadderCounts();
@@ -422,7 +424,7 @@ $('#runCrawl').addEventListener('click', async () => {
   try {
     const data = await api('/api/crawl', {
       body: {
-        url, maxPages: Number($('#maxPages').value) || 150, ua: $('#ua').value,
+        url, maxPages: Number($('#maxPages')?.value) || 1000, ua: $('#ua').value,
         respectRobots: $('#respectRobots').checked, render: $('#renderJs')?.checked || false, includeSubdomains: $('#includeSubdomains').checked,
         moneyUrls: $('#moneyUrls').value.split('\n').map((s) => s.trim()).filter(Boolean),
       },
@@ -1689,7 +1691,7 @@ function renderOverview() {
           </div>
         </div>
 
-        ${state.truncated ? `<div class="msg err">The crawl ${state.timeExceeded ? `reached the execution time budget with ${state.remainingQueue} URLs still queued. Scope to a section or run locally to audit without timeouts.` : `hit its page cap with ${state.remainingQueue} URLs still queued. A partial crawl produces confidently wrong findings — raise the cap or scope to a section.`}</div>` : ''}
+        ${state.truncated ? `<div class="msg ${(state.pages?.length || 0) > 10 ? 'note' : 'err'}">The crawl ${state.timeExceeded ? `reached the serverless time budget (${((state.timeElapsedMs || 0)/1000).toFixed(0)}s) with ${state.remainingQueue} deep URLs queued. Core pages audited.` : `reached its configured limit with ${state.remainingQueue} URLs queued. You can increase Max Pages in Crawl Settings to crawl deeper.`}</div>` : ''}
 
         ${state.pages.length || state.findings.length ? `
           <div class="gate">

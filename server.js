@@ -349,13 +349,13 @@ const state = { crawl: null, audit: null, progress: null, propertyId: null, clus
 /* ─────────────────────────────────── crawl ────────────────────────────────── */
 
 app.post('/api/crawl', requirePermission('audit:run'), wrap(async (req, res) => {
-  const { url, maxPages = 500, ua = 'googlebot', includeSubdomains = false, respectRobots = true, concurrency = 5, moneyUrls = [], timeLimitMs } = req.body;
+  const { url, maxPages = 1000, ua = 'googlebot', includeSubdomains = false, respectRobots = true, concurrency = 5, moneyUrls = [], timeLimitMs } = req.body;
   if (!url) return fail(res, 'A start URL is required.');
   state.progress = { done: 0, max: maxPages, url: '', phase: 'crawling' };
 
   // Serverless safety budget: on Vercel with maxDuration: 60, allocate 45s so the crawl completes thoroughly without 504 Gateway Timeouts
   const budget = timeLimitMs ? Math.min(Number(timeLimitMs), 52000) : (process.env.VERCEL ? 45000 : 90000);
-  const crawlConcurrency = Number(concurrency) || (process.env.VERCEL ? 10 : 6);
+  const crawlConcurrency = Number(concurrency) || (process.env.VERCEL ? 12 : 8);
 
   const result = await crawl(url, { maxPages, ua, includeSubdomains, respectRobots, concurrency: crawlConcurrency, timeLimitMs: budget },
     (p) => { state.progress = { ...p, phase: 'crawling' }; });
@@ -377,6 +377,10 @@ app.post('/api/crawl', requirePermission('audit:run'), wrap(async (req, res) => 
     stats: state.audit.stats, counts: state.audit.counts,
     findings: state.audit.findings, topThree: state.audit.topThree,
     pages: result.pages.map(slimPage),
+    truncated: result.truncated,
+    timeExceeded: result.timeExceeded || false,
+    timeElapsedMs: result.timeElapsedMs || 0,
+    remainingQueue: result.remainingQueue || 0,
   });
 
   ok(res, {
@@ -979,7 +983,12 @@ app.post('/api/properties/activate', wrap(async (req, res) => {
   if (!rec) return fail(res, 'That property is not in the registry.', 404);
   const cached = await props.loadCrawl(rec.id);
   if (cached) {
-    state.crawl = { origin: cached.origin, crawledAt: cached.crawledAt, pages: cached.pages, external: [], blocked: [], robots: { sitemaps: [] }, robotsRaw: '', sitemapSources: [] };
+    state.crawl = {
+      origin: cached.origin, crawledAt: cached.crawledAt, pages: cached.pages,
+      truncated: cached.truncated || false, timeExceeded: cached.timeExceeded || false,
+      timeElapsedMs: cached.timeElapsedMs || 0, remainingQueue: cached.remainingQueue || 0,
+      external: [], blocked: [], robots: { sitemaps: [] }, robotsRaw: '', sitemapSources: [],
+    };
     state.audit = { stats: cached.stats, counts: cached.counts, findings: cached.findings, topThree: cached.topThree };
     state.propertyId = rec.id;
   }
