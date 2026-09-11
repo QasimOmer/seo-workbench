@@ -2790,6 +2790,7 @@ function renderAuthModalBody() {
     try {
       const isEmail = userVal.includes('@');
       let authedUser = null;
+      let authToken = null;
 
       // Try Firebase Auth if configured and email is provided
       const fb = await initFirebase();
@@ -2806,6 +2807,7 @@ function renderAuthModalBody() {
             body: { uid: user.uid, email: user.email, displayName: nameVal || user.displayName, photoURL: user.photoURL },
           });
           authedUser = sync.user;
+          authToken = sync.token;
         } catch (fbErr) {
           console.warn('[Firebase Auth fallback to local]', fbErr.message);
         }
@@ -2819,7 +2821,7 @@ function renderAuthModalBody() {
         authedUser = res.user;
         setSessionUser(authedUser, res.token);
       } else {
-        setSessionUser(authedUser);
+        setSessionUser(authedUser, authToken);
       }
       $('#authModal')?.close();
       toast(isSignUp ? `Account created! Welcome, ${authedUser.name || authedUser.username}.` : `Signed in as ${authedUser.name || authedUser.username}.`, 'ok');

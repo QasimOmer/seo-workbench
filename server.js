@@ -115,7 +115,14 @@ const cookieAttrs = (req, maxAgeSec) => {
 /* Role-Based Access Control Middleware */
 const requirePermission = (perm) => (req, res, next) => {
   if (!req.authEnabled) return next();
-  if (!req.user) return res.status(401).json({ ok: false, error: 'Authentication required.' });
+  if (!req.user) {
+    // Allow public / guest access for core SEO auditing and reports
+    if (perm === 'audit:run' || perm === 'audit:read' || perm === 'content:read') {
+      req.user = { id: 'guest', username: 'guest', role: 'viewer', roleLabel: 'Guest' };
+      return next();
+    }
+    return res.status(401).json({ ok: false, error: 'Authentication required.' });
+  }
   if (auth.hasPermission(req.user, perm)) return next();
   return res.status(403).json({
     ok: false,
@@ -136,7 +143,7 @@ const requireRole = (...roles) => (req, res, next) => {
 
 app.use('/api', wrap(async (req, res, next) => {
   const st = await auth.status();
-  const effectiveAuth = IS_PROD || st.enabled;
+  const effectiveAuth = Boolean(st.enabled || process.env.FORCE_AUTH === 'true');
   req.authEnabled = effectiveAuth;
 
   if (OPEN_PATHS.has(req.path)) return next();
@@ -144,6 +151,11 @@ app.use('/api', wrap(async (req, res, next) => {
 
   const user = await auth.resolve(getAuthToken(req));
   if (!user) {
+    // Allow unauthenticated guests to run audits and read progress
+    if (req.path === '/crawl' || req.path === '/progress') {
+      req.user = { id: 'guest', username: 'guest', role: 'viewer', roleLabel: 'Guest' };
+      return next();
+    }
     return res.status(401).json({
       ok: false,
       error: 'Not signed in.',
@@ -172,7 +184,7 @@ app.use('/api', wrap(async (req, res, next) => {
 
 app.get('/api/auth/status', wrap(async (req, res) => {
   const st = await auth.status();
-  const effectiveAuth = IS_PROD || st.enabled;
+  const effectiveAuth = Boolean(st.enabled || process.env.FORCE_AUTH === 'true');
   const user = effectiveAuth ? await auth.resolve(getAuthToken(req)) : null;
   ok(res, {
     ...st,
@@ -341,10 +353,11 @@ app.post('/api/crawl', requirePermission('audit:run'), wrap(async (req, res) => 
   if (!url) return fail(res, 'A start URL is required.');
   state.progress = { done: 0, max: maxPages, url: '', phase: 'crawling' };
 
-  // On Vercel serverless functions, enforce an 8500ms safety budget to prevent 504 Gateway Timeouts
-  const budget = timeLimitMs ? Math.min(Number(timeLimitMs), 55000) : (process.env.VERCEL ? 8500 : 55000);
+  // Serverless safety budget: on Vercel with maxDuration: 60, allocate 45s so the crawl completes thoroughly without 504 Gateway Timeouts
+  const budget = timeLimitMs ? Math.min(Number(timeLimitMs), 52000) : (process.env.VERCEL ? 45000 : 90000);
+  const crawlConcurrency = Number(concurrency) || (process.env.VERCEL ? 10 : 6);
 
-  const result = await crawl(url, { maxPages, ua, includeSubdomains, respectRobots, concurrency, timeLimitMs: budget },
+  const result = await crawl(url, { maxPages, ua, includeSubdomains, respectRobots, concurrency: crawlConcurrency, timeLimitMs: budget },
     (p) => { state.progress = { ...p, phase: 'crawling' }; });
 
   state.crawl = result;
@@ -396,11 +409,18 @@ app.get('/api/crawl/current', (req, res) => {
   });
 });
 
-app.get('/api/page', (req, res) => {
-  const p = state.crawl?.pages.find((x) => x.url === req.query.url);
+app.get('/api/page', wrap(async (req, res) => {
+  let p = state.crawl?.pages.find((x) => x.url === req.query.url);
+  if (!p) {
+    const list = await props.listProperties();
+    if (list.activeId) {
+      const cached = await props.loadCrawl(list.activeId);
+      p = cached?.pages?.find((x) => x.url === req.query.url);
+    }
+  }
   if (!p) return fail(res, 'URL not found in the current crawl.', 404);
   ok(res, { page: { ...p, shingles: undefined, bodyText: (p.bodyText || '').slice(0, 4000) } });
-});
+}));
 
 app.post('/api/page/review', wrap(async (req, res) => {
   const { url, withPsi = false, withInspection = false, siteUrl } = req.body;
