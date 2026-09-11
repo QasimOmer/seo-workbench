@@ -1808,11 +1808,18 @@ async function authBoot() {
   initFirebase().catch(() => {});
   setupLandingPage();
 
-  if (!st.enabled) {
+  // By default, visitors land on the SaaS Marketing Landing Page unless they are in the workbench or explicitly requested it
+  const params = new URLSearchParams(location.search);
+  const wantsApp = params.get('view') === 'app' || params.get('view') === 'workbench';
+  const inWorkbench = sessionStorage.getItem('in_workbench') === '1';
+  const shouldShowLanding = !wantsApp && (!inWorkbench || params.get('view') === 'landing');
+
+  if (shouldShowLanding) {
     $('#authGate').hidden = true;
     renderWhoami(st);
     setupAuthModal(st);
     setupTeamModal();
+    showLanding();
     return;
   }
 
@@ -1821,18 +1828,16 @@ async function authBoot() {
     $('#authGate').hidden = true;
     setupAuthModal(st);
     setupTeamModal();
+    hideLanding();
     return;
   }
 
-  // If user is on landing page or has not chosen to enter workbench, don't interrupt with gate
-  const params = new URLSearchParams(location.search);
-  const onLanding = document.body.classList.contains('on-landing') || params.get('view') === 'landing' || !sessionStorage.getItem('in_workbench');
-  if (onLanding && params.get('view') !== 'workbench') {
+  if (!st.enabled) {
     $('#authGate').hidden = true;
     renderWhoami(st);
     setupAuthModal(st);
     setupTeamModal();
-    showLanding();
+    hideLanding();
     return;
   }
 
@@ -1947,6 +1952,25 @@ function setupLandingPage() {
   $('#btnBottomDemo')?.addEventListener('click', () => hideLanding());
 
   $('#btnViewLanding')?.addEventListener('click', () => showLanding());
+  $('#btnRailLanding')?.addEventListener('click', () => showLanding());
+
+  // Close mobile drawer when tapping backdrop
+  $('#railBackdrop')?.addEventListener('click', () => {
+    $('#rail')?.classList.remove('open');
+    $('#railBackdrop')?.classList.remove('open');
+    $('#railToggle')?.setAttribute('aria-expanded', 'false');
+  });
+
+  // Also close mobile drawer when selecting any navitem on small screens
+  $$('.navitem').forEach((item) => {
+    item.addEventListener('click', () => {
+      if (window.innerWidth <= 920) {
+        $('#rail')?.classList.remove('open');
+        $('#railBackdrop')?.classList.remove('open');
+        $('#railToggle')?.setAttribute('aria-expanded', 'false');
+      }
+    });
+  });
 
   const triggerQuickAudit = () => {
     let url = $('#landingQuickUrl')?.value.trim();
@@ -1985,15 +2009,19 @@ function setupLandingPage() {
 
   try {
     const params = new URLSearchParams(location.search);
-    if (params.get('view') === 'landing') {
+    const wantsApp = params.get('view') === 'app' || params.get('view') === 'workbench';
+    const inWorkbench = sessionStorage.getItem('in_workbench') === '1';
+    if (!wantsApp && (!inWorkbench || params.get('view') === 'landing')) {
       showLanding();
+    } else {
+      hideLanding();
     }
   } catch {}
 }
 
 function showLanding() {
   const lv = $('#landingView');
-  const portal = $('.portal');
+  const portal = $('.portal') || $('#portal');
   if (lv) {
     lv.hidden = false;
     lv.style.display = 'flex';
@@ -2004,6 +2032,7 @@ function showLanding() {
   }
   document.body.classList.add('on-landing');
   try {
+    sessionStorage.removeItem('in_workbench');
     const u = new URL(location);
     u.searchParams.set('view', 'landing');
     history.replaceState(null, '', u);
@@ -2013,7 +2042,7 @@ function showLanding() {
 
 function hideLanding() {
   const lv = $('#landingView');
-  const portal = $('.portal');
+  const portal = $('.portal') || $('#portal');
   if (lv) {
     lv.hidden = true;
     lv.style.display = 'none';

@@ -873,14 +873,76 @@ async function makeBrief(clusterLabel, intent, targetId = 'briefOut') {
 
 async function gscStatus() {
   const s = await api('/api/gsc/status');
-  $('#dotGsc').classList.toggle('on', s.connected);
+  window._gscStatus = s;
+  window._gscConnected = !!s.connected;
+  $('#dotGsc')?.classList.toggle('on', s.connected);
+
+  // Synchronize topbar Search Console indicator
+  const tbPill = $('#tbGscPill');
+  const pillText = $('#gscPillText');
+  const pillDot = $('#gscPillDot');
+  if (tbPill) {
+    if (s.connected) {
+      tbPill.className = 'tb-gsc-pill connected';
+      if (pillDot) pillDot.className = 'gsc-pill-dot on';
+      if (pillText) pillText.textContent = state.gscSite ? `GSC: ${state.gscSite.replace(/^https?:\/\//, '').replace(/\/$/, '')}` : 'GSC: Connected';
+    } else {
+      tbPill.className = 'tb-gsc-pill disconnected';
+      if (pillDot) pillDot.className = 'gsc-pill-dot';
+      if (pillText) pillText.textContent = state.gscImport ? 'GSC: CSV Active' : 'GSC: Connect API';
+    }
+    tbPill.onclick = () => showPanel('console');
+  }
+
   if (!s.configured) {
     const cbUri = `${window.location.origin}/api/gsc/callback`;
-    $('#gscAuth').innerHTML = `<div class="msg">Search Console is not configured. Create an OAuth client (Web application) in Google Cloud Console, enable the Search Console API, and add <code>GSC_CLIENT_ID</code> and <code>GSC_CLIENT_SECRET</code> to <code>.env</code> (or under <b>Setup &amp; keys</b> in the sidebar). Set the redirect URI to <code>${cbUri}</code>. Full steps are in the README.</div>`;
+    $('#gscAuth').innerHTML = `
+      <div class="dash-gsc-card" style="margin-bottom:16px;">
+        <div class="dash-gsc-hd">
+          <div class="dash-gsc-title-wrap">
+            <div class="gsc-icon-badge">
+              <svg class="i" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+            </div>
+            <div>
+              <h4 class="dash-gsc-title">Google Search Console Integration</h4>
+              <p class="dash-gsc-sub">Direct API OAuth connection or instant drag-and-drop CSV analysis</p>
+            </div>
+          </div>
+          <span class="gsc-status-pill disconnected">&bull; OAuth Not Configured</span>
+        </div>
+        <div style="font-size:12.5px;color:var(--ink2);line-height:1.55;margin-bottom:14px;">
+          Create an OAuth client (Web application) in Google Cloud Console, enable the Search Console API, and set redirect URI to <code>${cbUri}</code>. Add <code>GSC_CLIENT_ID</code> and <code>GSC_CLIENT_SECRET</code> to your settings.
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+          <button class="go sm" id="btnGscConfigureSettings">⚙️ Configure OAuth Client Keys</button>
+          <label class="go ghost sm" for="gscFiles" style="cursor:pointer;">📂 Import CSV Export (No Cloud Project Needed)</label>
+        </div>
+      </div>`;
+    $('#btnGscConfigureSettings')?.addEventListener('click', () => {
+      showPanel('settings');
+      $('#setGscClientId')?.focus();
+    });
     return;
   }
   if (!s.connected) {
-    $('#gscAuth').innerHTML = `<div class="form"><button class="go" id="gscConnect">Connect Search Console</button></div>`;
+    $('#gscAuth').innerHTML = `
+      <div class="dash-gsc-card" style="margin-bottom:16px;">
+        <div class="dash-gsc-hd">
+          <div class="dash-gsc-title-wrap">
+            <div class="gsc-icon-badge">
+              <svg class="i" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+            </div>
+            <div>
+              <h4 class="dash-gsc-title">Connect Google Search Console</h4>
+              <p class="dash-gsc-sub">OAuth configured &bull; Authenticate with 1 click</p>
+            </div>
+          </div>
+          <span class="gsc-status-pill disconnected">&bull; Ready to Connect</span>
+        </div>
+        <div class="form" style="margin-top:12px;">
+          <button class="go" id="gscConnect">⚡ Connect with Google</button>
+        </div>
+      </div>`;
     $('#gscConnect').addEventListener('click', () => {
       const win = window.open(s.authUrl, '_blank', 'width=520,height=680');
       if (!win) {
@@ -900,7 +962,7 @@ async function gscStatus() {
     return;
   }
   $('#gscAuth').innerHTML = `<div class="msg ok" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
-    <span>Connected. Findings from this tab are observed, not inferred.</span>
+    <span><b>&check; Google Search Console Connected.</b> Verified search query performance and observed ranking metrics active.</span>
     <button class="go ghost tiny" id="gscDisconnect" style="margin:0">Disconnect</button>
   </div>`;
   $('#gscDisconnect')?.addEventListener('click', async () => {
@@ -1221,7 +1283,23 @@ function renderBuild(tool) {
         <label class="check"><input type="checkbox" id="bStaging"> Staging — block everything</label>
         <button class="go" id="bRun">Generate robots.txt</button>
         <button class="go ghost" id="bSitemap">Generate sitemap from crawl</button>
-      </div><div id="bOut"></div>`;
+      </div><div id="bOut"></div>
+      
+      <div class="card" style="margin-top:24px; padding:18px 20px; border:1px solid var(--line); border-radius:12px; background:var(--raised);">
+        <h4 style="margin:0 0 6px; font-size:14px; font-weight:600; color:var(--ink);">Googlebot Directive Validator</h4>
+        <p class="note" style="margin:0 0 12px;">Test whether Googlebot is allowed or blocked on any specific URL path under your Disallow rules.</p>
+        <div class="form">
+          <div class="field grow">
+            <label for="robTestPath">URL Path to test</label>
+            <input id="robTestPath" placeholder="/wp-admin/settings.php" value="/admin/">
+          </div>
+          <div class="field">
+            <label>&nbsp;</label>
+            <button class="go" id="robTestBtn" type="button">Test Path</button>
+          </div>
+        </div>
+        <div id="robTestResult" style="margin-top:10px;"></div>
+      </div>`;
     $('#bRun').addEventListener('click', async () => {
       const { robots } = await api('/api/generate/robots', {
         body: {
@@ -1238,6 +1316,131 @@ function renderBuild(tool) {
         <p class="note">${esc(d.note)}</p><div class="out code">${esc(d.xml.slice(0, 4000))}${d.xml.length > 4000 ? '\n…' : ''}</div>` + copyBar(d.xml);
       wireCopy();
     });
+    $('#robTestBtn')?.addEventListener('click', () => {
+      const path = ($('#robTestPath')?.value || '').trim();
+      const resEl = $('#robTestResult');
+      if (!path || !resEl) return;
+      const extra = ($('#bDisallow')?.value || '').split('\n').map((s) => s.trim()).filter(Boolean);
+      const isStaging = $('#bStaging')?.checked;
+      const plat = $('#bPlat')?.value;
+      const standardDisallows = isStaging ? ['/'] : (plat === 'wordpress' ? ['/wp-admin/'] : []);
+      const allRules = [...standardDisallows, ...extra];
+      
+      const matched = allRules.find((r) => {
+        const cleanRule = r.replace(/^Disallow:\s*/i, '').trim();
+        return cleanRule && path.startsWith(cleanRule);
+      });
+
+      if (matched) {
+        resEl.innerHTML = `<div class="msg bad">⛔ <b>BLOCKED:</b> Googlebot is disallowed from crawling <code>${esc(path)}</code> by rule <code>Disallow: ${esc(matched)}</code>.</div>`;
+      } else {
+        resEl.innerHTML = `<div class="msg ok">✅ <b>ALLOWED:</b> Googlebot has crawl permission to fetch <code>${esc(path)}</code>.</div>`;
+      }
+    });
+  }
+  if (tool === 'serp') {
+    const hasPages = state.pages && state.pages.length > 0;
+    const initialPage = hasPages ? (state.pages.find((p) => p.status === 200 && p.title) || state.pages[0]) : null;
+    const initialTitle = initialPage?.title || 'Premier Security Guard Services | West Guards Security';
+    const initialDesc = initialPage?.metaDesc || 'Professional, licensed, and insured security personnel providing 24/7 commercial, construction, and residential protection.';
+    const initialUrl = initialPage?.url || state.origin || 'https://www.example.com/security-services';
+
+    out.innerHTML = `<h3 class="sub">Google SERP &amp; Social Snippet Simulator</h3>
+      <p class="note">Pixel-precise visual simulation for Google Search (Desktop &amp; Mobile) and Open Graph social sharing cards (LinkedIn, Facebook, X). Prevent keyword truncation before publishing.</p>
+      
+      ${hasPages ? `
+      <div class="form" style="margin-bottom:16px;">
+        <div class="field grow">
+          <label for="serpPageSelect">Auto-fill from crawled page</label>
+          <select id="serpPageSelect">
+            <option value="">-- Select a crawled URL to inspect --</option>
+            ${state.pages.slice(0, 150).map((p) => `<option value="${esc(p.url)}">${esc(short(p.url, 50))} — ${esc(short(p.title || 'No Title', 35))}</option>`).join('')}
+          </select>
+        </div>
+      </div>` : ''}
+
+      <div class="serp-sim-layout">
+        <div class="serp-inputs-col">
+          <div class="field">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+              <label for="serpTitle" style="margin-bottom:0; font-weight:600;">SEO Title</label>
+              <div style="display:flex; gap:6px;">
+                <span class="serp-meter ok" id="serpTitleChars">0 chars</span>
+                <span class="serp-meter ok" id="serpTitlePx">0px / 600px</span>
+              </div>
+            </div>
+            <input id="serpTitle" value="${esc(initialTitle)}" placeholder="Target Keyword | Brand Name">
+          </div>
+
+          <div class="field">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+              <label for="serpDesc" style="margin-bottom:0; font-weight:600;">Meta Description</label>
+              <div style="display:flex; gap:6px;">
+                <span class="serp-meter ok" id="serpDescChars">0 chars</span>
+                <span class="serp-meter ok" id="serpDescPx">0px / 960px</span>
+              </div>
+            </div>
+            <textarea id="serpDesc" style="min-height:76px" placeholder="Engaging description with primary value proposition and call to action.">${esc(initialDesc)}</textarea>
+          </div>
+
+          <div class="field">
+            <label for="serpUrl" style="font-weight:600;">Target URL</label>
+            <input id="serpUrl" value="${esc(initialUrl)}" placeholder="https://example.com/services/sub-page">
+          </div>
+
+          <div class="field">
+            <label for="serpOgImage" style="font-weight:600;">Featured / OG Image URL</label>
+            <input id="serpOgImage" placeholder="https://example.com/assets/og-image.jpg">
+          </div>
+
+          <div class="field">
+            <label style="font-weight:600;">SERP Device Viewport</label>
+            <div style="display:flex; gap:8px;">
+              <button class="chip active" id="btnSerpDesktop" type="button">💻 Desktop SERP (600px)</button>
+              <button class="chip" id="btnSerpMobile" type="button">📱 Mobile SERP (680px)</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="serp-preview-col">
+          <div class="serp-preview-card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+              <span style="font-size:11px; text-transform:uppercase; font-family:var(--data); letter-spacing:.06em; color:var(--ink3); font-weight:700;">Google Search Preview</span>
+              <span class="chip tiny" id="serpDevicePill">Desktop (600px Max)</span>
+            </div>
+
+            <div class="google-serp-box" id="gsbBox">
+              <div class="gsb-header">
+                <div class="gsb-favicon">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
+                </div>
+                <div class="gsb-url-trail">
+                  <span class="gsb-domain" id="gsbDomain">example.com</span>
+                  <span class="gsb-path" id="gsbPath">https://example.com</span>
+                </div>
+              </div>
+              <h3 class="gsb-title" id="gsbTitle">Page Title Preview</h3>
+              <p class="gsb-desc" id="gsbDesc">Meta description preview will appear here.</p>
+            </div>
+
+            <div style="margin-top:22px; padding-top:16px; border-top:1px solid var(--line);">
+              <div style="font-size:11px; text-transform:uppercase; font-family:var(--data); letter-spacing:.06em; color:var(--ink3); font-weight:700; margin-bottom:10px;">Social Share Card (Open Graph)</div>
+              <div class="social-og-box">
+                <div class="sog-image-wrap" id="sogImageWrap">
+                  <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="var(--ink3)" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                </div>
+                <div class="sog-body">
+                  <span class="sog-domain" id="sogDomain">EXAMPLE.COM</span>
+                  <h4 class="sog-title" id="sogTitle">Social Title</h4>
+                  <p class="sog-desc" id="sogDesc">Social description preview</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+
+    wireSerpSimulator();
   }
   if (tool === 'brief') {
     out.innerHTML = `<h3 class="sub">Content brief</h3>
@@ -1255,6 +1458,155 @@ function renderBuild(tool) {
     });
   }
 }
+
+let _serpCanvasCtx = null;
+function measureTextPx(text, font) {
+  if (!text) return 0;
+  if (!_serpCanvasCtx) {
+    const c = document.createElement('canvas');
+    _serpCanvasCtx = c.getContext('2d');
+  }
+  if (!_serpCanvasCtx) return text.length * 9;
+  _serpCanvasCtx.font = font;
+  return Math.round(_serpCanvasCtx.measureText(text).width);
+}
+
+function wireSerpSimulator() {
+  let isMobile = false;
+
+  const titleIn = $('#serpTitle');
+  const descIn = $('#serpDesc');
+  const urlIn = $('#serpUrl');
+  const ogImgIn = $('#serpOgImage');
+  const pageSel = $('#serpPageSelect');
+  const btnDesk = $('#btnSerpDesktop');
+  const btnMob = $('#btnSerpMobile');
+
+  if (pageSel) {
+    pageSel.addEventListener('change', () => {
+      const url = pageSel.value;
+      if (!url) return;
+      const p = (state.pages || []).find((x) => x.url === url);
+      if (p) {
+        if (titleIn && p.title) titleIn.value = p.title;
+        if (descIn && p.metaDesc) descIn.value = p.metaDesc;
+        if (urlIn) urlIn.value = p.url;
+        updateSim();
+      }
+    });
+  }
+
+  const updateSim = () => {
+    const title = (titleIn?.value || '').trim();
+    const desc = (descIn?.value || '').trim();
+    const url = (urlIn?.value || '').trim();
+    const ogImg = (ogImgIn?.value || '').trim();
+
+    // 1. Title Pixel and Length Measurement
+    const titleFont = isMobile ? '18px Roboto, Arial, sans-serif' : '20px Arial, sans-serif';
+    const titlePx = measureTextPx(title, titleFont);
+    const maxTitlePx = isMobile ? 680 : 600;
+    const safeTitlePx = isMobile ? 640 : 580;
+
+    const tCharsEl = $('#serpTitleChars');
+    const tPxEl = $('#serpTitlePx');
+    if (tCharsEl) tCharsEl.textContent = `${title.length} chars`;
+    if (tPxEl) {
+      tPxEl.textContent = `${titlePx}px / ${maxTitlePx}px`;
+      tPxEl.className = 'serp-meter ' + (titlePx <= safeTitlePx ? 'ok' : (titlePx <= maxTitlePx ? 'warn' : 'bad'));
+    }
+
+    // Truncate title if pixel width exceeded
+    let displayTitle = title;
+    if (titlePx > maxTitlePx) {
+      let truncated = title;
+      while (truncated.length > 5 && measureTextPx(truncated + ' ...', titleFont) > maxTitlePx) {
+        truncated = truncated.slice(0, -1);
+      }
+      displayTitle = truncated + ' ...';
+    }
+    const gsbTitle = $('#gsbTitle');
+    if (gsbTitle) gsbTitle.textContent = displayTitle || 'Untitled Page';
+
+    // 2. Meta Description Pixel and Length
+    const descFont = isMobile ? '13px Roboto, Arial, sans-serif' : '14px Arial, sans-serif';
+    const descPx = measureTextPx(desc, descFont);
+    const maxDescPx = isMobile ? 680 : 960;
+    const maxDescChars = isMobile ? 120 : 160;
+
+    const dCharsEl = $('#serpDescChars');
+    const dPxEl = $('#serpDescPx');
+    if (dCharsEl) dCharsEl.textContent = `${desc.length} chars`;
+    if (dPxEl) {
+      dPxEl.textContent = `${descPx}px / ${maxDescPx}px`;
+      dPxEl.className = 'serp-meter ' + (desc.length >= 70 && desc.length <= maxDescChars ? 'ok' : (desc.length > maxDescChars ? 'bad' : 'warn'));
+    }
+
+    const gsbDesc = $('#gsbDesc');
+    if (gsbDesc) gsbDesc.textContent = desc || 'Add a meta description to see how it looks in search snippets.';
+
+    // 3. URL and Breadcrumb
+    let domain = 'example.com';
+    let pathTrail = url;
+    try {
+      const parsed = new URL(url.startsWith('http') ? url : 'https://' + url);
+      domain = parsed.hostname.replace(/^www\./, '');
+      const segments = parsed.pathname.split('/').filter(Boolean);
+      pathTrail = `https://${parsed.hostname}${segments.length ? ' › ' + segments.join(' › ') : ''}`;
+    } catch {
+      domain = url.split('/')[0] || 'example.com';
+    }
+    const gsbDom = $('#gsbDomain');
+    const gsbPath = $('#gsbPath');
+    if (gsbDom) gsbDom.textContent = domain;
+    if (gsbPath) gsbPath.textContent = pathTrail;
+
+    // 4. Social Open Graph Box
+    const sogDom = $('#sogDomain');
+    const sogTitle = $('#sogTitle');
+    const sogDesc = $('#sogDesc');
+    if (sogDom) sogDom.textContent = domain.toUpperCase();
+    if (sogTitle) sogTitle.textContent = title || 'Social Title';
+    if (sogDesc) sogDesc.textContent = desc || 'Social description preview';
+
+    const sogWrap = $('#sogImageWrap');
+    if (sogWrap) {
+      if (ogImg && /^https?:\/\//i.test(ogImg)) {
+        sogWrap.innerHTML = `<img class="sog-img" src="${esc(ogImg)}" alt="Social Preview" onerror="this.parentElement.innerHTML='<span style=\\'color:var(--ink3);font-size:12px;display:flex;align-items:center;justify-content:center;height:100%\\'>Image preview unavailable</span>'">`;
+      } else {
+        sogWrap.innerHTML = `<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="var(--ink3)" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`;
+      }
+    }
+  };
+
+  [titleIn, descIn, urlIn, ogImgIn].forEach((el) => {
+    if (el) el.addEventListener('input', updateSim);
+  });
+
+  if (btnDesk && btnMob) {
+    btnDesk.addEventListener('click', () => {
+      isMobile = false;
+      btnDesk.classList.add('active');
+      btnMob.classList.remove('active');
+      $('#gsbBox')?.classList.remove('mobile-view');
+      const pill = $('#serpDevicePill');
+      if (pill) pill.textContent = 'Desktop (600px Max)';
+      updateSim();
+    });
+    btnMob.addEventListener('click', () => {
+      isMobile = true;
+      btnMob.classList.add('active');
+      btnDesk.classList.remove('active');
+      $('#gsbBox')?.classList.add('mobile-view');
+      const pill = $('#serpDevicePill');
+      if (pill) pill.textContent = 'Mobile (680px Max)';
+      updateSim();
+    });
+  }
+
+  updateSim();
+}
+
 
 async function draftTitles(useClaude) {
   $('#tOut').innerHTML = '<div class="progress">Drafting…</div>';
@@ -1866,6 +2218,92 @@ function renderOverview() {
       </div>
     </div>
 
+    <!-- Google Search Console Integration & Organic Performance Card -->
+    <div class="dash-gsc-card">
+      <div class="dash-gsc-hd">
+        <div class="dash-gsc-title-wrap">
+          <div class="gsc-icon-badge">
+            <svg class="i" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+          </div>
+          <div>
+            <h3 class="dash-gsc-title">Google Search Console Intelligence</h3>
+            <p class="dash-gsc-sub">Real Google queries, CTR gaps, and striking-distance rankings directly from Google's search index</p>
+          </div>
+        </div>
+        <div class="gsc-hd-right">
+          ${(state.gscSite || window._gscConnected) ? `
+            <span class="gsc-status-pill connected">&check; Connected &middot; ${esc(state.gscSite || 'Verified Property')}</span>
+          ` : state.gscImport ? `
+            <span class="gsc-status-pill connected">&check; CSV Data Active (${state.gscImport.striking?.length || 0} Striking Queries)</span>
+          ` : `
+            <span class="gsc-status-pill disconnected">&bull; Not Connected</span>
+          `}
+        </div>
+      </div>
+
+      <div class="dash-gsc-body">
+        ${(state.gscSite || window._gscConnected || state.gscImport) ? `
+          <div>
+            <div style="display:flex;gap:12px;margin-bottom:14px;flex-wrap:wrap;align-items:center;">
+              <div class="dsc-pill pass" style="padding:4px 10px;font-size:12px;">Verified Google Data</div>
+              <span style="font-size:12px;color:var(--ink2);">Positions 4&ndash;20 are your highest-leverage traffic opportunities.</span>
+            </div>
+            ${(state.gscImport?.striking?.length || 0) ? `
+              <div class="table-scroll-wrap">
+                <table style="width:100%;font-size:12px;border-collapse:collapse;">
+                  <thead>
+                    <tr style="border-bottom:1px solid var(--line);text-align:left;color:var(--ink3);">
+                      <th style="padding:6px 8px;">Top Striking Query</th>
+                      <th style="padding:6px 8px;" class="num">Position</th>
+                      <th style="padding:6px 8px;" class="num">Impressions</th>
+                      <th style="padding:6px 8px;" class="num">Clicks</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${state.gscImport.striking.slice(0, 3).map((r) => `
+                      <tr style="border-bottom:1px solid var(--line-soft);">
+                        <td style="padding:6px 8px;font-weight:600;color:var(--ink);">${esc(r.query)}</td>
+                        <td style="padding:6px 8px;" class="num">${r.position.toFixed(1)}</td>
+                        <td style="padding:6px 8px;" class="num">${num(r.impressions)}</td>
+                        <td style="padding:6px 8px;" class="num">${num(r.clicks)}</td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              </div>
+            ` : `
+              <p style="font-size:12.5px;color:var(--ink2);margin:0 0 10px;">Search Console performance metrics ready to explore.</p>
+            `}
+          </div>
+          <div class="dash-gsc-actions">
+            <button class="go sm" id="dashGscOpenBtn">View Full Search Console Analytics &rarr;</button>
+            <label class="go ghost sm" for="dashGscFileInput" style="cursor:pointer;text-align:center;">Refresh with CSV Export</label>
+            <input type="file" id="dashGscFileInput" accept=".csv,text/csv" multiple style="display:none">
+          </div>
+        ` : `
+          <div class="dash-gsc-actions">
+            <div class="dash-gsc-cta-row">
+              <button class="go sm" id="dashGscConnectBtn">⚡ Connect Google Search Console (OAuth)</button>
+              <label class="go ghost sm" for="dashGscFileInput" style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;">
+                <svg class="i sm" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+                <span>Import GSC CSV (Zero Keys Needed)</span>
+              </label>
+              <input type="file" id="dashGscFileInput" accept=".csv,text/csv" multiple style="display:none">
+            </div>
+            <div style="display:flex;gap:12px;align-items:center;margin-top:4px;">
+              <button class="btn-link" id="dashGscSettingsBtn" style="background:none;border:none;color:var(--accent);font-size:12px;cursor:pointer;padding:0;text-decoration:underline;">Configure OAuth Client IDs</button>
+              <span style="color:var(--ink3);font-size:11px;">&bull; No third-party scraper approximations</span>
+            </div>
+          </div>
+          <div class="dash-gsc-features-list">
+            <div><b>&check; Real Google Rank:</b> Observed rankings, not scraped guesswork.</div>
+            <div><b>&check; Striking Distance (Pos 4&ndash;20):</b> Identifies low-hanging fruit queries.</div>
+            <div><b>&check; CTR Gap Analysis:</b> High impressions with low CTR = title & meta lever.</div>
+          </div>
+        `}
+      </div>
+    </div>
+
     <!-- Lower Split Content -->
     <div class="dash-content-split">
       <!-- Left Column: Volume Chart + Diagnostics + First Work -->
@@ -2022,6 +2460,34 @@ function renderOverview() {
     showPanel('ladder'); renderLadderPanel();
   }));
   $$('[data-go]').forEach((b) => b.addEventListener('click', () => showPanel(b.dataset.go)));
+
+  $('#dashGscOpenBtn')?.addEventListener('click', () => {
+    showPanel('console');
+    document.querySelector('[data-gsc="performance"]')?.click();
+  });
+  $('#dashGscConnectBtn')?.addEventListener('click', () => {
+    showPanel('console');
+    $('#gscConnect')?.click();
+  });
+  $('#dashGscSettingsBtn')?.addEventListener('click', () => {
+    showPanel('settings');
+    $('#setGscClientId')?.focus();
+  });
+  $('#dashGscFileInput')?.addEventListener('change', async (e) => {
+    const input = e.target;
+    if (!input.files?.length) return;
+    try {
+      if (typeof toast === 'function') toast('Importing Search Console CSV...', 'note');
+      const files = await Promise.all([...input.files].map(async (f) => ({ name: f.name, text: await f.text() })));
+      const d = await api('/api/gsc/import', { body: { files } });
+      state.gscImport = d;
+      if (typeof toast === 'function') toast(`Imported ${d.dimensions?.Queries?.rows || 0} Search Console queries!`, 'ok');
+      renderOverview();
+      gscStatus();
+    } catch (err) {
+      if (typeof toast === 'function') toast(`Import error: ${err.message}`, 'err');
+    }
+  });
 
   const launchAudit = () => {
     let raw = $('#wUrl')?.value.trim();

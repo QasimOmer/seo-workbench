@@ -9,7 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,400..800&family=Inter:wght@400;500;550;600;650&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css?v=2.4.2">
 </head>
-<body>
+<body class="on-landing">
 
 <div class="gatecover" id="authGate" hidden>
   <div class="authbox">
@@ -95,7 +95,7 @@
 </dialog>
 
 <!-- ═══════════════════════════ LANDING PAGE VIEW ═══════════════════════════ -->
-<div id="landingView" class="landing-view" hidden>
+<div id="landingView" class="landing-view">
   <header class="landing-nav">
     <div class="landing-brand">
       <span class="mark" aria-hidden="true"></span>
@@ -353,7 +353,7 @@
   </footer>
 </div>
 
-<div class="portal">
+<div class="portal" id="portal" hidden>
 
 <aside class="rail" id="rail">
   <div class="brand">
@@ -426,6 +426,10 @@
   </nav>
 
   <div class="railfoot">
+    <button class="rail-landing-btn" id="btnRailLanding" type="button" title="Back to Marketing Landing Page">
+      <svg class="i sm" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>
+      <span>Marketing Landing</span>
+    </button>
     <div class="rail-user-widget" id="railUserWidget" title="Click to manage team &amp; permissions">
       <div class="ruw-avatar" id="ruwAvatar">SE</div>
       <div class="ruw-info">
@@ -437,6 +441,8 @@
     <div class="rail-version-label">Version 2.4.2</div>
   </div>
 </aside>
+
+<div class="rail-backdrop" id="railBackdrop"></div>
 
 <header class="topbar">
   <button class="railtoggle" id="railToggle" aria-label="Show navigation" aria-expanded="false"><span></span><span></span><span></span></button>
@@ -468,6 +474,10 @@
   </div>
 
   <div class="tbactions">
+    <button class="tb-gsc-pill disconnected" id="tbGscPill" title="Google Search Console Status &amp; Integration">
+      <span class="gsc-pill-dot" id="gscPillDot"></span>
+      <span id="gscPillText">GSC: Connect API</span>
+    </button>
     <div class="themeswitch" id="themeSwitch"></div>
     <button class="tb-icon-btn" id="tbStatusBtn" title="System Live Status &amp; Diagnostics">
       <span class="tb-live-dot"></span>
@@ -614,6 +624,7 @@
   <p class="lede">The execution half. Everything here produces something you can ship — markup, redirect rules, link plans, briefs.</p>
   <div class="chipset" id="buildTools">
     <button class="chip" data-build="titles" aria-pressed="true">Titles &amp; metas</button>
+    <button class="chip" data-build="serp">SERP &amp; Social simulator</button>
     <button class="chip" data-build="schema">Structured data</button>
     <button class="chip" data-build="links">Internal links</button>
     <button class="chip" data-build="redirects">Redirect map</button>
