@@ -1572,19 +1572,19 @@ function renderOverview() {
   out.innerHTML = `
     <!-- Top Greeting Hero -->
     <div class="dash-hero">
-      <div class="dash-hero-info">
+      <div class="dash-hero-left">
         <div class="dash-date-kicker">${todayStr}</div>
-        <h1 class="dash-greeting">${greeting}, <span class="accent-name">${esc(firstName)}.</span></h1>
-        <p class="dash-subtext">${subtext}</p>
+        <h1 class="dash-greeting">${greeting}, <span class="dash-user-name">${esc(firstName)}.</span></h1>
+        <p class="dash-subtitle">${subtext}</p>
       </div>
-      <div class="dash-hero-actions">
+      <div class="dash-hero-right">
         <div class="dash-time-segmented" role="tablist">
           <button class="dash-time-btn" data-time="24h">24h</button>
           <button class="dash-time-btn active" data-time="7d">7d</button>
           <button class="dash-time-btn" data-time="30d">30d</button>
           <button class="dash-time-btn" data-time="90d">90d</button>
         </div>
-        <button class="dash-btn-primary" id="dashHeroCrawlBtn">
+        <button class="dash-new-crawl-btn" id="dashHeroCrawlBtn">
           <svg class="i" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           <span>New crawl</span>
         </button>
@@ -1594,17 +1594,17 @@ function renderOverview() {
     <!-- 4 Executive Metric Cards -->
     <div class="dash-stat-grid">
       <!-- Card 1: Large / Featured with SVG wave -->
-      <div class="dash-stat-card dsc-featured">
+      <div class="dash-stat-card featured">
         <div class="dsc-top">
-          <div class="dsc-icon-badge ib-teal">
+          <div class="dsc-icon-badge teal">
             <svg class="i" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
           </div>
-          <span class="dsc-trend-pill trend-down">↘ 78%</span>
+          <span class="dsc-pill warn">↘ 78%</span>
         </div>
-        <div class="dsc-value">${pageCountDisplay}</div>
+        <div class="dsc-val">${pageCountDisplay}</div>
         <div class="dsc-label">PAGES CRAWLED (7D)</div>
-        <div class="dsc-sparkline">
-          <svg viewBox="0 0 300 70" preserveAspectRatio="none">
+        <div class="dsc-sparkline-wrap">
+          <svg class="dsc-sparkline" viewBox="0 0 300 70" preserveAspectRatio="none">
             <defs>
               <linearGradient id="tealGrad" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stop-color="var(--teal)" stop-opacity="0.32"/>
@@ -1620,11 +1620,11 @@ function renderOverview() {
       <!-- Card 2: Total Sites -->
       <div class="dash-stat-card">
         <div class="dsc-top">
-          <div class="dsc-icon-badge ib-purple">
+          <div class="dsc-icon-badge blue">
             <svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
           </div>
         </div>
-        <div class="dsc-value">${nSites}</div>
+        <div class="dsc-val">${nSites}</div>
         <div class="dsc-label">TOTAL SITES</div>
         <div class="dsc-sub">Active workspace domains</div>
       </div>
@@ -1632,15 +1632,15 @@ function renderOverview() {
       <!-- Card 3: Indexable Pages -->
       <div class="dash-stat-card">
         <div class="dsc-top">
-          <div class="dsc-icon-badge ib-green">
+          <div class="dsc-icon-badge green">
             <svg class="i" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
           </div>
-          <span class="dsc-trend-pill trend-up">↗ 50%</span>
+          <span class="dsc-pill pass">↗ 50%</span>
         </div>
-        <div class="dsc-value">${indexableDisplay}</div>
+        <div class="dsc-val">${indexableDisplay}</div>
         <div class="dsc-label">INDEXABLE PAGES</div>
-        <div class="dsc-sparkline mini">
-          <svg viewBox="0 0 150 40" preserveAspectRatio="none">
+        <div class="dsc-sparkline-wrap mini">
+          <svg class="dsc-sparkline" viewBox="0 0 150 40" preserveAspectRatio="none">
             <path d="M0,32 L30,30 L60,12 L90,26 L120,8 L150,22" fill="none" stroke="var(--pass)" stroke-width="2" stroke-linecap="round"/>
           </svg>
         </div>
@@ -1649,11 +1649,11 @@ function renderOverview() {
       <!-- Card 4: Messages / Speed -->
       <div class="dash-stat-card">
         <div class="dsc-top">
-          <div class="dsc-icon-badge ib-amber">
+          <div class="dsc-icon-badge amber">
             <svg class="i" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
           </div>
         </div>
-        <div class="dsc-value">${speedDisplay}</div>
+        <div class="dsc-val">${speedDisplay}</div>
         <div class="dsc-label">CRAWL BUDGET &amp; SPEED</div>
         <div class="dsc-sub">of 25,000 pages included</div>
       </div>
@@ -1662,31 +1662,31 @@ function renderOverview() {
     <!-- Lower Split Content -->
     <div class="dash-content-split">
       <!-- Left Column: Volume Chart + Diagnostics + First Work -->
-      <div class="dash-col-left">
-        <div class="dash-volume-chart">
-          <div class="dvc-header">
+      <div class="dash-left-col">
+        <div class="dash-card">
+          <div class="dash-card-hd">
             <div>
-              <h3 class="dvc-title">Crawl volume</h3>
-              <p class="dvc-sub">Daily crawl requests across all sites &middot; last 30 days</p>
+              <h3 class="dash-card-title">Crawl volume</h3>
+              <p class="dash-card-sub">Daily crawl requests across all sites &middot; last 30 days</p>
             </div>
-            <span class="dvc-badge">30 days</span>
+            <span class="dash-badge-sm">30 days</span>
           </div>
-          <div class="dvc-chart-wrap">
-            <svg viewBox="0 0 600 180" preserveAspectRatio="none">
+          <div class="dash-volume-chart">
+            <svg class="dash-area-chart" viewBox="0 0 600 160" preserveAspectRatio="none">
               <defs>
                 <linearGradient id="volGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.22"/>
+                  <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.25"/>
                   <stop offset="100%" stop-color="var(--accent)" stop-opacity="0.0"/>
                 </linearGradient>
               </defs>
-              <line x1="0" y1="30" x2="600" y2="30" stroke="var(--line)" stroke-dasharray="3,3"/>
-              <line x1="0" y1="90" x2="600" y2="90" stroke="var(--line)" stroke-dasharray="3,3"/>
-              <line x1="0" y1="150" x2="600" y2="150" stroke="var(--line)" stroke-dasharray="3,3"/>
-              <text x="5" y="26" font-size="10" fill="var(--ink3)">8</text>
-              <text x="5" y="86" font-size="10" fill="var(--ink3)">4</text>
-              <text x="5" y="146" font-size="10" fill="var(--ink3)">0</text>
-              <path d="M20,150 L50,150 L80,140 L110,150 L140,145 L170,150 L200,130 L230,150 L260,140 L290,145 L320,150 L350,150 L380,80 L410,140 L440,120 L470,150 L500,50 L530,130 L560,110 L590,140 L590,165 L20,165 Z" fill="url(#volGrad)"/>
-              <path d="M20,150 L50,150 L80,140 L110,150 L140,145 L170,150 L200,130 L230,150 L260,140 L290,145 L320,150 L350,150 L380,80 L410,140 L440,120 L470,150 L500,50 L530,130 L560,110 L590,140" fill="none" stroke="var(--accent)" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+              <line x1="0" y1="30" x2="600" y2="30" stroke="var(--line-soft)" stroke-dasharray="3,3"/>
+              <line x1="0" y1="80" x2="600" y2="80" stroke="var(--line-soft)" stroke-dasharray="3,3"/>
+              <line x1="0" y1="130" x2="600" y2="130" stroke="var(--line-soft)" stroke-dasharray="3,3"/>
+              <text x="6" y="26" class="dash-chart-axis">8</text>
+              <text x="6" y="76" class="dash-chart-axis">4</text>
+              <text x="6" y="126" class="dash-chart-axis">0</text>
+              <path d="M20,130 L50,130 L80,120 L110,130 L140,125 L170,130 L200,110 L230,130 L260,120 L290,125 L320,130 L350,130 L380,60 L410,120 L440,100 L470,130 L500,30 L530,110 L560,90 L590,120 L590,150 L20,150 Z" fill="url(#volGrad)"/>
+              <path d="M20,130 L50,130 L80,120 L110,130 L140,125 L170,130 L200,110 L230,130 L260,120 L290,125 L320,130 L350,130 L380,60 L410,120 L440,100 L470,130 L500,30 L530,110 L560,90 L590,120" fill="none" stroke="var(--accent)" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
             </svg>
           </div>
         </div>
@@ -1735,53 +1735,49 @@ function renderOverview() {
       </div>
 
       <!-- Right Column: Recent Activity + This Crawl + Where to Go Next -->
-      <div class="dash-col-right">
-        <div class="dash-activity-list">
-          <div class="dal-header">
-            <h3 class="dal-title">Recent activity</h3>
-            <p class="dal-sub">Latest crawls &amp; audit updates</p>
+      <div class="dash-right-col">
+        <div class="dash-card">
+          <div class="dash-card-hd">
+            <div>
+              <h3 class="dash-card-title">Recent activity</h3>
+              <p class="dash-card-sub">Latest crawls &amp; audit updates</p>
+            </div>
           </div>
-          <div class="dal-items">
-            <div class="dal-item">
-              <div class="dal-icon ib-teal">
+          <div class="dash-activity-list">
+            <div class="dash-activity-item">
+              <div class="dai-icon blue">
                 <svg class="i" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
               </div>
-              <div class="dal-content">
-                <div class="dal-line1">
-                  <span class="dal-action">New crawl completed</span>
-                  <span class="dal-time">yesterday</span>
-                </div>
-                <div class="dal-detail">${num(s.crawled ?? state.pages.length ?? 4)} pages audited</div>
-                <div class="dal-bot">&bull; ${esc(domainLabel)}</div>
+              <div class="dai-content">
+                <div class="dai-title">New crawl completed</div>
+                <div class="dai-meta">${num(s.crawled ?? state.pages.length ?? 4)} pages audited</div>
+                <div class="dai-sub">&bull; ${esc(domainLabel)}</div>
               </div>
+              <div class="dai-time">yesterday</div>
             </div>
 
-            <div class="dal-item">
-              <div class="dal-icon ib-green">
+            <div class="dash-activity-item">
+              <div class="dai-icon green">
                 <svg class="i" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
               </div>
-              <div class="dal-content">
-                <div class="dal-line1">
-                  <span class="dal-action">Indexation verified</span>
-                  <span class="dal-time">3 days ago</span>
-                </div>
-                <div class="dal-detail">${num(s.indexable ?? state.pages.length ?? 4)} indexable pages confirmed</div>
-                <div class="dal-bot">&bull; ${esc(domainLabel)}</div>
+              <div class="dai-content">
+                <div class="dai-title">Indexation verified</div>
+                <div class="dai-meta">${num(s.indexable ?? state.pages.length ?? 4)} indexable pages confirmed</div>
+                <div class="dai-sub">&bull; ${esc(domainLabel)}</div>
               </div>
+              <div class="dai-time">3 days ago</div>
             </div>
 
-            <div class="dal-item">
-              <div class="dal-icon ib-amber">
+            <div class="dash-activity-item">
+              <div class="dai-icon amber">
                 <svg class="i" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
               </div>
-              <div class="dal-content">
-                <div class="dal-line1">
-                  <span class="dal-action">Diagnostic review</span>
-                  <span class="dal-time">5 days ago</span>
-                </div>
-                <div class="dal-detail">${first.length ? `${first.length} priority recommendations` : 'Site health intact'}</div>
-                <div class="dal-bot">&bull; ${esc(domainLabel)}</div>
+              <div class="dai-content">
+                <div class="dai-title">Diagnostic review</div>
+                <div class="dai-meta">${first.length ? `${first.length} priority recommendations` : 'Site health intact'}</div>
+                <div class="dai-sub">&bull; ${esc(domainLabel)}</div>
               </div>
+              <div class="dai-time">5 days ago</div>
             </div>
           </div>
         </div>
