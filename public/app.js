@@ -49,12 +49,159 @@ const busy = (btn, on, label) => {
 
 /* ══════════════════════════════ portal shell ══════════════════════════════ */
 
+const SECTION_MAP = {
+  // Diagnosis
+  overview: 'diagnosis',
+  ladder: 'diagnosis',
+  pages: 'diagnosis',
+  crawl: 'diagnosis',
+  security: 'diagnosis',
+
+  // Performance
+  speed: 'performance',
+  logs: 'performance',
+
+  // Analysis
+  console: 'analysis',
+  competitors: 'analysis',
+  aivis: 'analysis',
+  clarity: 'analysis',
+  demand: 'analysis',
+  rank: 'analysis',
+
+  // Plan
+  newsite: 'plan',
+  program: 'plan',
+  campaigns: 'plan',
+
+  // Build
+  build: 'build',
+  social: 'build',
+  ship: 'build',
+  brand: 'build',
+
+  // Settings
+  settings: 'settings',
+  setup: 'settings',
+  team: 'settings',
+  monitors: 'settings',
+  people: 'settings',
+  health: 'settings',
+};
+
+const SECTIONS = {
+  diagnosis: {
+    label: 'Diagnosis',
+    tag: 'Technical Audit & Health',
+    default: 'overview',
+    tabs: [
+      { id: 'overview', label: 'Overview & Fixes' },
+      { id: 'ladder', label: '14-Point Ladder' },
+      { id: 'pages', label: 'Pages & Issues' },
+      { id: 'crawl', label: 'Crawl Settings' },
+      { id: 'security', label: 'Security Headers' },
+    ],
+  },
+  performance: {
+    label: 'Performance',
+    tag: 'Speed & Crawl Budget',
+    default: 'speed',
+    tabs: [
+      { id: 'speed', label: 'Speed & CrUX' },
+      { id: 'logs', label: 'Server Logs' },
+    ],
+  },
+  analysis: {
+    label: 'Analysis',
+    tag: 'Search Console & Intelligence',
+    default: 'console',
+    tabs: [
+      { id: 'console', label: 'Search Console' },
+      { id: 'competitors', label: 'Competitors' },
+      { id: 'aivis', label: 'AI Visibility' },
+      { id: 'clarity', label: 'Behaviour (Clarity)' },
+      { id: 'demand', label: 'Keyword Demand' },
+      { id: 'rank', label: 'Search Rank' },
+    ],
+  },
+  plan: {
+    label: 'Plan',
+    tag: 'Architecture & Roadmap',
+    default: 'newsite',
+    tabs: [
+      { id: 'newsite', label: 'Plan New Site' },
+      { id: 'program', label: 'Work Roadmap' },
+      { id: 'campaigns', label: 'Campaigns' },
+    ],
+  },
+  build: {
+    label: 'Build',
+    tag: 'Code, Social & Ship',
+    default: 'build',
+    tabs: [
+      { id: 'build', label: 'Code Generators' },
+      { id: 'social', label: 'Social Posts' },
+      { id: 'ship', label: 'Pre-Launch & Ship' },
+      { id: 'brand', label: 'Brand Voice' },
+    ],
+  },
+  settings: {
+    label: 'Settings',
+    tag: 'Keys & Team RBAC',
+    default: 'settings',
+    tabs: [
+      { id: 'settings', label: 'Keys & Integrations' },
+      { id: 'team', label: 'Team & RBAC' },
+      { id: 'monitors', label: 'Monitoring' },
+      { id: 'people', label: 'People & Tasks' },
+      { id: 'health', label: 'System Health' },
+    ],
+  },
+};
+
+window.SECTIONS = SECTIONS;
+window.SECTION_MAP = SECTION_MAP;
+
+function renderSubnav(secKey, activePanel) {
+  const host = $('#subnavTabs');
+  if (!host) return;
+  const sec = SECTIONS[secKey];
+  if (!sec) return;
+
+  const activeTab = sec.tabs.find((t) => t.id === activePanel) || sec.tabs[0];
+
+  host.innerHTML = sec.tabs.map((t) => `
+    <button class="subnav-tab ${t.id === activePanel ? 'active' : ''}" data-panel="${t.id}" role="tab" aria-selected="${t.id === activePanel}">
+      ${t.label}
+    </button>
+  `).join('');
+
+  $$('.subnav-tab', host).forEach((btn) => {
+    btn.addEventListener('click', () => {
+      showPanel(btn.dataset.panel);
+    });
+  });
+
+  const bSec = $('#tbcSection');
+  const bPage = $('#tbcPage');
+  if (bSec) bSec.textContent = sec.label;
+  if (bPage) bPage.textContent = activeTab ? activeTab.label : '';
+}
+
 function showPanel(name, opts = {}) {
+  if (name === 'setup') name = 'settings';
   state.panel = name;
+  const secKey = SECTION_MAP[name] || 'diagnosis';
+  state.section = secKey;
+
   $$('.panel').forEach((p) => { p.hidden = p.id !== `p-${name}`; });
-  $$('.navitem').forEach((x) => x.setAttribute('aria-current', String(x.dataset.panel === name)));
+  $$('.navitem[data-section]').forEach((x) => x.setAttribute('aria-current', String(x.dataset.section === secKey)));
+  $$('.navitem[data-panel]').forEach((x) => x.setAttribute('aria-current', String(x.dataset.panel === name)));
   $$('.rung').forEach((x) => x.setAttribute('aria-current', String(name === 'ladder' && x.dataset.phase === state.phase)));
   if (name !== 'ladder') $$('.rung').forEach((x) => x.setAttribute('aria-current', 'false'));
+
+  renderSubnav(secKey, name);
+
   $('#rail').classList.remove('open');
   $('#railToggle').setAttribute('aria-expanded', 'false');
   if (!opts.keepScroll) $('#work').scrollTo?.(0, 0), window.scrollTo(0, 0);

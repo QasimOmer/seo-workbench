@@ -4,36 +4,40 @@
    currentColor so one definition works in both themes. Each is chosen to
    describe the section rather than to decorate it. */
 const ICONS = {
-  overview:  '<path d="M3 12h4l2-7 3 14 2-7h4"/>',
-  pages:     '<path d="M4 3h9l3 3v11H4z"/><path d="M13 3v3h3"/><path d="M7 9h6M7 12h6"/>',
-  console:   '<path d="M3 16V8M7.5 16V5M12 16v-6M16.5 16V3"/>',
-  speed:     '<path d="M10 17a7 7 0 1 1 7-7"/><path d="M10 10l4-3"/><circle cx="10" cy="10" r="1"/>',
-  security:  '<path d="M10 3l6 2v5c0 4-2.7 6.4-6 7-3.3-.6-6-3-6-7V5z"/><path d="M7.5 10l2 2 3.5-4"/>',
-  rank:      '<path d="M3 17h14"/><path d="M6 17v-5M10 17V7M14 17v-8"/>',
-  newsite:   '<path d="M10 3v14M3 10h14"/><rect x="3" y="3" width="14" height="14" rx="2"/>',
-  demand:    '<circle cx="9" cy="9" r="5"/><path d="M13 13l4 4"/>',
-  program:   '<rect x="3" y="4" width="14" height="13" rx="2"/><path d="M3 8h14M7 2v3M13 2v3"/><path d="M7 12l1.5 1.5L12 11"/>',
-  build:     '<path d="M11 3l6 6-2 2-6-6z"/><path d="M9 5L3 11v4h4l6-6"/>',
-  social:    '<circle cx="6" cy="10" r="2.5"/><circle cx="14" cy="5" r="2.5"/><circle cx="14" cy="15" r="2.5"/><path d="M8.2 8.8l3.6-2.2M8.2 11.2l3.6 2.2"/>',
-  campaigns: '<path d="M4 8v4l9 4V4z"/><path d="M4 8H2v4h2"/><path d="M16 8a3 3 0 0 1 0 4"/>',
-  ship:      '<path d="M3 12l7 4 7-4"/><path d="M3 8l7 4 7-4-7-4z"/>',
-  monitors:  '<path d="M2 10h3l2-5 3 10 2-5h6"/>',
-  crawl:     '<circle cx="10" cy="10" r="7"/><path d="M3 10h14M10 3c2.5 2.5 2.5 11.5 0 14M10 3c-2.5 2.5-2.5 11.5 0 14"/>',
-  brand:     '<path d="M10 3l2.2 4.6 5 .7-3.6 3.5.9 5-4.5-2.4L5.5 16.8l.9-5L2.8 8.3l5-.7z"/>',
-  setup:     '<circle cx="10" cy="10" r="2.5"/><path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.5 4.5l1.4 1.4M14.1 14.1l1.4 1.4M4.5 15.5l1.4-1.4M14.1 5.9l1.4-1.4"/>',
-  health:    '<path d="M2 10h4l2 4 4-8 2 4h4"/>',
-  aivis:     '<path d="M10 3a7 7 0 1 0 7 7"/><path d="M10 3v7l5 2"/><circle cx="10" cy="10" r="1.3"/>',
-  logs:      '<path d="M4 3h9l3 3v11H4z"/><path d="M7 8h6M7 11h6M7 14h3"/>',
+  diagnosis:   '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
+  performance: '<path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>',
+  analysis:    '<path d="M18 20V10M12 20V4M6 20v-6"/>',
+  plan:        '<path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3V6zM9 3v15M15 6v15"/>',
+  overview:    '<path d="M3 12h4l2-7 3 14 2-7h4"/>',
+  pages:       '<path d="M4 3h9l3 3v11H4z"/><path d="M13 3v3h3"/><path d="M7 9h6M7 12h6"/>',
+  console:     '<path d="M3 16V8M7.5 16V5M12 16v-6M16.5 16V3"/>',
+  speed:       '<path d="M10 17a7 7 0 1 1 7-7"/><path d="M10 10l4-3"/><circle cx="10" cy="10" r="1"/>',
+  security:    '<path d="M10 3l6 2v5c0 4-2.7 6.4-6 7-3.3-.6-6-3-6-7V5z"/><path d="M7.5 10l2 2 3.5-4"/>',
+  rank:        '<path d="M3 17h14"/><path d="M6 17v-5M10 17V7M14 17v-8"/>',
+  newsite:     '<path d="M10 3v14M3 10h14"/><rect x="3" y="3" width="14" height="14" rx="2"/>',
+  demand:      '<circle cx="9" cy="9" r="5"/><path d="M13 13l4 4"/>',
+  program:     '<rect x="3" y="4" width="14" height="13" rx="2"/><path d="M3 8h14M7 2v3M13 2v3"/><path d="M7 12l1.5 1.5L12 11"/>',
+  build:       '<path d="M11 3l6 6-2 2-6-6z"/><path d="M9 5L3 11v4h4l6-6"/>',
+  social:      '<circle cx="6" cy="10" r="2.5"/><circle cx="14" cy="5" r="2.5"/><circle cx="14" cy="15" r="2.5"/><path d="M8.2 8.8l3.6-2.2M8.2 11.2l3.6 2.2"/>',
+  campaigns:   '<path d="M4 8v4l9 4V4z"/><path d="M4 8H2v4h2"/><path d="M16 8a3 3 0 0 1 0 4"/>',
+  ship:        '<path d="M3 12l7 4 7-4"/><path d="M3 8l7 4 7-4-7-4z"/>',
+  monitors:    '<path d="M2 10h3l2-5 3 10 2-5h6"/>',
+  crawl:       '<circle cx="10" cy="10" r="7"/><path d="M3 10h14M10 3c2.5 2.5 2.5 11.5 0 14M10 3c-2.5 2.5-2.5 11.5 0 14"/>',
+  brand:       '<path d="M10 3l2.2 4.6 5 .7-3.6 3.5.9 5-4.5-2.4L5.5 16.8l.9-5L2.8 8.3l5-.7z"/>',
+  setup:       '<circle cx="10" cy="10" r="2.5"/><path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.5 4.5l1.4 1.4M14.1 14.1l1.4 1.4M4.5 15.5l1.4-1.4M14.1 5.9l1.4-1.4"/>',
+  health:      '<path d="M2 10h4l2 4 4-8 2 4h4"/>',
+  aivis:       '<path d="M10 3a7 7 0 1 0 7 7"/><path d="M10 3v7l5 2"/><circle cx="10" cy="10" r="1.3"/>',
+  logs:        '<path d="M4 3h9l3 3v11H4z"/><path d="M7 8h6M7 11h6M7 14h3"/>',
   competitors: '<path d="M3 16V9M8 16V4M13 16v-5M18 16V7"/><path d="M2 18h16"/>',
-  clarity:   '<path d="M4 14l3-3 2.5 2L16 6"/><circle cx="7" cy="11" r="1.4"/><circle cx="9.5" cy="13" r="1.4"/>',
-  people:    '<circle cx="7" cy="7" r="2.8"/><path d="M2.5 16c0-2.6 2-4.2 4.5-4.2S11.5 13.4 11.5 16"/><path d="M13 5.2a2.8 2.8 0 0 1 0 5.4M14 11.9c2 .5 3.5 1.9 3.5 4.1"/>',
-  team:      '<circle cx="7" cy="7" r="2.8"/><path d="M2.5 16c0-2.6 2-4.2 4.5-4.2S11.5 13.4 11.5 16"/><path d="M13 5.2a2.8 2.8 0 0 1 0 5.4M14 11.9c2 .5 3.5 1.9 3.5 4.1"/>',
-  settings:  '<circle cx="10" cy="10" r="2.5"/><path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.5 4.5l1.4 1.4M14.1 14.1l1.4 1.4M4.5 15.5l1.4-1.4M14.1 5.9l1.4-1.4"/>',
-  sun:       '<circle cx="10" cy="10" r="3.5"/><path d="M10 2.5v1.8M10 15.7v1.8M2.5 10h1.8M15.7 10h1.8M4.7 4.7l1.3 1.3M14 14l1.3 1.3M4.7 15.3L6 14M14 6l1.3-1.3"/>',
-  moon:      '<path d="M15.5 11.5A6.5 6.5 0 0 1 8.5 4.5a6.5 6.5 0 1 0 7 7z"/>',
-  check:     '<path d="M4 10.5l3.5 3.5L16 6"/>',
-  alert:     '<path d="M10 3l7 13H3z"/><path d="M10 8v3.5M10 13.6v.1"/>',
-  info:      '<circle cx="10" cy="10" r="7"/><path d="M10 9v5M10 6.6v.1"/>',
+  clarity:     '<path d="M4 14l3-3 2.5 2L16 6"/><circle cx="7" cy="11" r="1.4"/><circle cx="9.5" cy="13" r="1.4"/>',
+  people:      '<circle cx="7" cy="7" r="2.8"/><path d="M2.5 16c0-2.6 2-4.2 4.5-4.2S11.5 13.4 11.5 16"/><path d="M13 5.2a2.8 2.8 0 0 1 0 5.4M14 11.9c2 .5 3.5 1.9 3.5 4.1"/>',
+  team:        '<circle cx="7" cy="7" r="2.8"/><path d="M2.5 16c0-2.6 2-4.2 4.5-4.2S11.5 13.4 11.5 16"/><path d="M13 5.2a2.8 2.8 0 0 1 0 5.4M14 11.9c2 .5 3.5 1.9 3.5 4.1"/>',
+  settings:    '<circle cx="10" cy="10" r="2.5"/><path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.5 4.5l1.4 1.4M14.1 14.1l1.4 1.4M4.5 15.5l1.4-1.4M14.1 5.9l1.4-1.4"/>',
+  sun:         '<circle cx="10" cy="10" r="3.5"/><path d="M10 2.5v1.8M10 15.7v1.8M2.5 10h1.8M15.7 10h1.8M4.7 4.7l1.3 1.3M14 14l1.3 1.3M4.7 15.3L6 14M14 6l1.3-1.3"/>',
+  moon:        '<path d="M15.5 11.5A6.5 6.5 0 0 1 8.5 4.5a6.5 6.5 0 1 0 7 7z"/>',
+  check:       '<path d="M4 10.5l3.5 3.5L16 6"/>',
+  alert:       '<path d="M10 3l7 13H3z"/><path d="M10 8v3.5M10 13.6v.1"/>',
+  info:        '<circle cx="10" cy="10" r="7"/><path d="M10 9v5M10 6.6v.1"/>',
 };
 
 const icon = (name, cls = '') =>
@@ -42,9 +46,10 @@ const icon = (name, cls = '') =>
 /* Nav icons are injected rather than written into the markup, so the sprite
    stays in one place and index.html stays readable. */
 function paintNavIcons() {
-  $$('.navitem[data-panel]').forEach((b) => {
+  $$('.navitem[data-section], .navitem[data-panel]').forEach((b) => {
     if (b.querySelector('.i')) return;
-    const svg = icon(b.dataset.panel);
+    const key = b.dataset.section || b.dataset.panel;
+    const svg = icon(key);
     if (svg) b.insertAdjacentHTML('afterbegin', svg);
   });
 }
@@ -1850,6 +1855,21 @@ function renderWhoami(st) {
     ? `<img src="${esc(u.photoURL)}" class="avatar sm" alt="${esc(u.name)}" style="width:24px;height:24px;border-radius:50%;object-fit:cover">`
     : `<span class="avatar sm" style="background:hsl(210 52% 42%)">${esc(initials)}</span>`;
 
+  // Sync sidebar footer widget
+  const ruwAvatar = $('#ruwAvatar');
+  const ruwName = $('#ruwName');
+  const ruwRole = $('#ruwRole');
+  if (ruwAvatar) {
+    ruwAvatar.innerHTML = u.photoURL
+      ? `<img src="${esc(u.photoURL)}" alt="${esc(u.name)}" style="width:100%;height:100%;border-radius:50%;object-fit:cover">`
+      : esc(initials);
+  }
+  if (ruwName) ruwName.textContent = (u.name || u.username || 'Workspace User').split(' ')[0];
+  if (ruwRole) {
+    ruwRole.textContent = u.roleLabel || u.role || 'Member';
+    ruwRole.className = `user-role-pill role-${esc(u.role || 'viewer')}`;
+  }
+
   host.innerHTML = `
     <div class="auth-user-wrap">
       <button class="whoami" id="whoBtn" title="${esc(u.username || u.name)}">
@@ -3383,11 +3403,26 @@ onPanel('settings', () => renderSettingsHub());
 
 /* Bound once. Nothing after this point may re-clone nav items. */
 function bindNav() {
+  $$('.navitem[data-section]').forEach((b) => {
+    if (b.dataset.bound) return;
+    b.dataset.bound = '1';
+    b.addEventListener('click', () => {
+      const secKey = b.dataset.section;
+      const target = window.SECTIONS?.[secKey]?.default || 'overview';
+      showPanel(target);
+    });
+  });
+
   $$('.navitem[data-panel]').forEach((b) => {
     if (b.dataset.bound) return;
     b.dataset.bound = '1';
     b.addEventListener('click', () => showPanel(b.dataset.panel));
   });
+
+  $('#railUserWidget')?.addEventListener('click', () => {
+    openTeamModal();
+  });
+
   paintNavIcons();
 }
 

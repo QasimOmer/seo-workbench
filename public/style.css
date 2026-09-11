@@ -149,9 +149,11 @@ a{color:var(--note)}
 
 .rail{grid-area:rail;background:var(--ground);color:var(--ground-txt);
   display:flex;flex-direction:column;position:sticky;top:0;height:100vh;
-  overflow-y:auto;scrollbar-width:thin}
+  overflow-y:auto;scrollbar-width:thin;border-right:1px solid var(--ground2)}
 .brand{display:flex;align-items:center;gap:10px;padding:0 18px;
   height:var(--bar-h);flex-shrink:0;border-bottom:1px solid var(--ground2)}
+.rail-tier-pill{font-size:9.5px;font-family:var(--data);font-weight:700;letter-spacing:.06em;
+  background:var(--ground2);color:var(--pass);padding:2px 7px;border-radius:10px;border:1px solid var(--ground3);margin-left:auto}
 /* the mark is the ladder: four rungs, one broken */
 .mark{width:18px;height:16px;flex-shrink:0;position:relative}
 .mark::before{content:'';position:absolute;left:0;right:0;top:1px;height:14px;background:
@@ -163,48 +165,87 @@ a{color:var(--note)}
 .bname{font-family:var(--display);font-variation-settings:'wdth' 86,'wght' 700;
   font-size:.95rem;color:#fff;letter-spacing:-.01em}
 
-.nav{padding:10px 0 6px;flex:1}
+.nav{padding:12px 10px;flex:1;display:flex;flex-direction:column;gap:5px}
 .navgroup{font-size:.72rem;font-weight:600;letter-spacing:.02em;
   color:var(--ground-dim);margin:16px 0 4px;padding:0 18px}
-.navitem{display:flex;align-items:center;gap:8px;width:100%;text-align:left;
-  background:transparent;border:0;border-left:2px solid transparent;
-  padding:7px 18px;color:var(--ground-txt);cursor:pointer;
-  font-family:var(--ui);font-size:.9rem;line-height:1.35}
-.navitem:hover{background:var(--ground2);color:#fff}
-.navitem[aria-current=true]{background:var(--ground2);border-left-color:var(--pass);
-  color:#fff;font-weight:550}
+.navitem{display:flex;align-items:center;gap:12px;width:100%;text-align:left;
+  background:transparent;border:1px solid transparent;border-radius:7px;
+  padding:9px 12px;color:var(--ground-txt);cursor:pointer;
+  font-family:var(--ui);font-size:.9rem;font-weight:500;line-height:1.3;
+  transition:background .15s ease, border-color .15s ease, color .15s ease}
+.navitem:hover{background:var(--ground2);color:#fff;border-color:var(--ground3)}
+.navitem[aria-current=true]{background:var(--ground2);border-color:var(--ground3);
+  box-shadow:inset 3px 0 0 var(--pass);
+  color:#fff;font-weight:600}
+.navitem .i{width:18px;height:18px;stroke-width:2;color:var(--ground-dim);flex-shrink:0;transition:color .15s ease}
+.navitem:hover .i, .navitem[aria-current=true] .i{color:var(--pass)}
 .navitem.sm{font-size:.85rem;color:var(--ground-dim)}
 .ni-label{flex:1}
+.ni-badge{font-family:var(--data);font-size:10px;color:var(--ground-dim);background:var(--ground);
+  padding:2px 7px;border-radius:10px;border:1px solid var(--ground3)}
+.navitem[aria-current=true] .ni-badge{background:var(--ground3);color:#fff}
 .ni-n{font-family:var(--data);font-size:10.5px;color:var(--ground-dim)}
 .ni-n.hot{color:#fff;background:var(--fault);padding:1px 5px;border-radius:3px}
 .ni-dot{width:6px;height:6px;border-radius:50%;background:var(--ground3);flex-shrink:0}
 .ni-dot.on{background:var(--pass)}
-.railfoot{padding:8px 0 14px;border-top:1px solid var(--ground2);flex-shrink:0}
+
+.railfoot{padding:10px 0;border-top:1px solid var(--ground2);flex-shrink:0}
+.rail-user-widget{display:flex;align-items:center;gap:10px;padding:8px 12px;
+  margin:0 10px;border-radius:8px;background:var(--ground2);border:1px solid var(--ground3);
+  cursor:pointer;transition:border-color .15s ease, background .15s ease}
+.rail-user-widget:hover{border-color:var(--ground-dim);background:var(--ground3)}
+.ruw-avatar{width:28px;height:28px;border-radius:50%;background:var(--ground);
+  display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;
+  color:#fff;border:1px solid var(--ground3);flex-shrink:0}
+.ruw-info{display:flex;flex-direction:column;min-width:0;flex:1}
+.ruw-name{font-size:12px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ruw-role{align-self:flex-start;font-size:9.5px;padding:1px 6px;margin-top:2px}
 
 /* the rail ladder — a sequence, so numbered legitimately */
-.rung{display:grid;grid-template-columns:14px 1fr auto;align-items:center;gap:9px;
-  width:100%;background:transparent;border:0;border-left:2px solid transparent;
-  padding:6px 18px;cursor:pointer;color:var(--ground-txt);
-  font-family:var(--ui);font-size:.87rem;text-align:left;line-height:1.3}
-.rung:hover{background:var(--ground2);color:#fff}
-.rung[aria-current=true]{background:var(--ground2);border-left-color:var(--pass);color:#fff}
-.rung .rn{font-family:var(--data);font-size:10px;color:var(--ground-dim)}
+.ladder-nav-container{background:var(--surface);border:1px solid var(--line-soft);
+  border-radius:8px;padding:14px;margin-bottom:20px}
+.ladder-nav{display:grid;grid-template-columns:repeat(auto-fill, minmax(220px, 1fr));gap:8px}
+.rung{display:grid;grid-template-columns:16px 1fr auto;align-items:center;gap:9px;
+  width:100%;background:var(--raised);border:1px solid var(--line-soft);border-radius:6px;
+  padding:8px 12px;cursor:pointer;color:var(--ink);
+  font-family:var(--ui);font-size:.87rem;text-align:left;line-height:1.3;transition:background .15s ease, border-color .15s ease}
+.rung:hover{background:var(--sunk);border-color:var(--line);color:var(--ink)}
+.rung[aria-current=true]{background:var(--sunk);border-color:var(--pass);box-shadow:inset 3px 0 0 var(--pass);color:var(--ink);font-weight:600}
+.rung .rn{font-family:var(--data);font-size:11px;font-weight:700;color:var(--ink3)}
 .rung[aria-current=true] .rn{color:var(--pass)}
-.rung .rc{font-family:var(--data);font-size:10px;padding:1px 5px;border-radius:3px;
-  background:var(--ground3);color:var(--ground-txt)}
-.rung .rc.crit{background:var(--fault);color:var(--ground)}
+.rung .rl{font-size:12.5px;color:var(--ink)}
+.rung .rc{font-family:var(--data);font-size:10px;padding:2px 6px;border-radius:4px;
+  background:var(--sunk);color:var(--ink2)}
+.rung .rc.crit{background:var(--fault);color:#fff}
 .rung .rc.high{background:var(--fault-bg);color:var(--fault)}
 .rung .rc.med{background:var(--warn-bg);color:var(--warn)}
-.rung .rc.zero{background:transparent;color:var(--ground-dim)}
+.rung .rc.zero{background:transparent;color:var(--ink3)}
 /* blocked stages read as blocked */
 .rung.blocked{opacity:.62}
 .rung.blocked:hover{opacity:1}
-.rung.clear{color:var(--ground-dim)}
+.rung.clear{color:var(--ink3)}
+
+/* ── top sub-navigation bar ──────────────────────────────────────── */
+.work-subnav{position:sticky;top:0;z-index:25;background:var(--surface);
+  border-bottom:1px solid var(--line-soft);padding:8px 20px;display:flex;
+  align-items:center;justify-content:flex-start;gap:12px}
+.subnav-tabs{display:flex;align-items:center;gap:6px;flex-wrap:wrap;overflow-x:auto;scrollbar-width:none}
+.subnav-tab{background:transparent;border:1px solid transparent;border-radius:6px;
+  padding:6px 12px;color:var(--ink2);cursor:pointer;font-family:var(--ui);
+  font-size:12.5px;font-weight:550;line-height:1.2;transition:background .15s ease, border-color .15s ease, color .15s ease;white-space:nowrap}
+.subnav-tab:hover{background:var(--sunk);color:var(--ink);border-color:var(--line-soft)}
+.subnav-tab.active, .subnav-tab[aria-selected="true"]{background:var(--raised);color:var(--ink);
+  border-color:var(--line);box-shadow:0 1px 4px rgba(0,0,0,.08);font-weight:650}
 
 /* ── topbar ─────────────────────────────────────────────────────── */
 .topbar{grid-area:topbar;background:var(--ground);
   border-bottom:1px solid var(--ground2);display:flex;align-items:center;
   gap:12px;padding:0 18px;position:sticky;top:0;z-index:40}
+.topbar-left{display:flex;align-items:center;gap:14px;flex:1;min-width:0}
+.topbar-breadcrumbs{display:flex;align-items:center;gap:7px;font-size:12.5px}
+.tbc-section{color:var(--ground-dim);font-weight:500}
+.tbc-sep{color:var(--ground3)}
+.tbc-page{color:#fff;font-weight:600}
 .railtoggle{display:none;flex-direction:column;gap:3px;background:transparent;
   border:0;cursor:pointer;padding:6px}
 .railtoggle span{display:block;width:17px;height:1.5px;background:var(--ground-txt)}
