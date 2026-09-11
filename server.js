@@ -1657,7 +1657,7 @@ if (cron && !process.env.VERCEL) {
 
 let server = null;
 if (!process.env.VERCEL) {
-  server = app.listen(PORT, () => {
+  server = app.listen(PORT, '0.0.0.0', () => {
     const keyed = process.env.GOOGLE_API_KEY ? 'with API key' : 'no key — low PSI quota';
     const oauth = gsc.isConfigured() ? 'configured' : 'not configured';
     console.log(`\n  SEO Workbench  →  http://localhost:${PORT}`);
