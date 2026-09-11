@@ -2006,6 +2006,200 @@ function setupLandingPage() {
     if (e.key === 'Enter') triggerQuickAudit();
   });
 
+  // Interactive Sample Domain Telemetry Profiles
+  const domainProfiles = {
+    'westguardssecurity.ca': {
+      domain: 'https://westguardssecurity.ca',
+      status: '200 OK',
+      ttfb: '142ms',
+      score: '94 / 100',
+      lcp: '1.18s',
+      inp: '46ms',
+      cls: '0.012',
+      urls: '1,480 URLs',
+      cleanUrls: '1,480',
+      d1: '18%', d2: '52%', d3: '26%',
+      gscQueries: '14 Opportunities',
+      gscGain: '+38.4%',
+      gscText: '“commercial security guard services vancouver”',
+      gscPos: 'Pos 5.8 • 24.8k Impr',
+      ladderScore: '14 / 14 Pass'
+    },
+    'stripe.com': {
+      domain: 'https://stripe.com',
+      status: '200 OK',
+      ttfb: '88ms',
+      score: '98 / 100',
+      lcp: '0.94s',
+      inp: '32ms',
+      cls: '0.005',
+      urls: '42,600 URLs',
+      cleanUrls: '42,540',
+      d1: '24%', d2: '60%', d3: '14%',
+      gscQueries: '82 Opportunities',
+      gscGain: '+22.1%',
+      gscText: '“developer payment processing api global”',
+      gscPos: 'Pos 4.2 • 140k Impr',
+      ladderScore: '14 / 14 Pass'
+    },
+    'shopify.com': {
+      domain: 'https://shopify.com',
+      status: '200 OK',
+      ttfb: '112ms',
+      score: '96 / 100',
+      lcp: '1.24s',
+      inp: '58ms',
+      cls: '0.018',
+      urls: '185,000 URLs',
+      cleanUrls: '184,820',
+      d1: '16%', d2: '54%', d3: '24%',
+      gscQueries: '320 Opportunities',
+      gscGain: '+29.6%',
+      gscText: '“sell online enterprise ecommerce platform”',
+      gscPos: 'Pos 4.9 • 380k Impr',
+      ladderScore: '14 / 14 Pass'
+    },
+    'github.com': {
+      domain: 'https://github.com',
+      status: '200 OK',
+      ttfb: '72ms',
+      score: '97 / 100',
+      lcp: '1.02s',
+      inp: '41ms',
+      cls: '0.008',
+      urls: '320,000 URLs',
+      cleanUrls: '319,900',
+      d1: '20%', d2: '58%', d3: '18%',
+      gscQueries: '410 Opportunities',
+      gscGain: '+25.2%',
+      gscText: '“git version control devops automation”',
+      gscPos: 'Pos 4.1 • 890k Impr',
+      ladderScore: '14 / 14 Pass'
+    }
+  };
+
+  $$('.lqa-chip').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      $$('.lqa-chip').forEach((c) => c.classList.remove('active'));
+      chip.classList.add('active');
+      const domainKey = chip.getAttribute('data-domain');
+      const profile = domainProfiles[domainKey];
+      if (!profile) return;
+
+      const input = $('#landingQuickUrl');
+      if (input) input.value = domainKey;
+
+      const dEl = $('#landingMockupDomain');
+      const sEl = $('#landingMockupStatus');
+      const tEl = $('#landingMockupTtfb');
+      const scoreEl = $('#landingMockupScore');
+
+      if (dEl) dEl.textContent = profile.domain;
+      if (sEl) sEl.textContent = profile.status;
+      if (tEl) tEl.textContent = 'TTFB: ' + profile.ttfb;
+      if (scoreEl) scoreEl.innerHTML = `<span class="msb-dot"></span> Health Score: <b>${profile.score}</b>`;
+
+      const lcpEl = $('#telemetryLcpVal');
+      const inpEl = $('#telemetryInpVal');
+      const clsEl = $('#telemetryClsVal');
+      if (lcpEl) lcpEl.textContent = profile.lcp;
+      if (inpEl) inpEl.textContent = profile.inp;
+      if (clsEl) clsEl.textContent = profile.cls;
+
+      const urlsEl = $('#telemetryUrlsVal');
+      const cleanUrlsEl = $('#telemetryCleanUrls');
+      if (urlsEl) urlsEl.textContent = profile.urls;
+      if (cleanUrlsEl) cleanUrlsEl.textContent = profile.cleanUrls;
+
+      const d1El = $('#telemetryDepthD1');
+      const d2El = $('#telemetryDepthD2');
+      const d3El = $('#telemetryDepthD3');
+      if (d1El) d1El.textContent = profile.d1;
+      if (d2El) d2El.textContent = profile.d2;
+      if (d3El) d3El.textContent = profile.d3;
+
+      const gscQEl = $('#telemetryGscQueriesVal');
+      const gscGainEl = $('#telemetryGscGain');
+      const gscTxtEl = $('#telemetryGscQueryText');
+      const gscPosEl = document.querySelector('#telemetryGscQueryChip .gqc-pos');
+      if (gscQEl) gscQEl.textContent = profile.gscQueries;
+      if (gscGainEl) gscGainEl.textContent = profile.gscGain;
+      if (gscTxtEl) gscTxtEl.textContent = profile.gscText;
+      if (gscPosEl) gscPosEl.textContent = profile.gscPos;
+
+      const ladderEl = $('#telemetryLadderScore');
+      if (ladderEl) ladderEl.textContent = profile.ladderScore;
+    });
+  });
+
+  // Interactive ROI Calculator Slider
+  const roiSlider = $('#landingRoiSlider');
+  if (roiSlider) {
+    const updateRoi = () => {
+      const urls = parseInt(roiSlider.value, 10) || 2500;
+      const urlDisplay = $('#landingRoiUrlDisplay');
+      if (urlDisplay) urlDisplay.textContent = urls.toLocaleString() + ' URLs';
+
+      const hours = Math.round(16 + (urls / 2500) * 32);
+      const cost = Math.round(hours * 85);
+      const trafficGain = Math.min(48.5, (28 + (urls / 5000) * 4)).toFixed(1);
+
+      const hoursEl = $('#landingRoiHours');
+      const costEl = $('#landingRoiCost');
+      const trafficEl = $('#landingRoiTraffic');
+
+      if (hoursEl) hoursEl.textContent = hours + ' hrs';
+      if (costEl) costEl.textContent = '$' + cost.toLocaleString();
+      if (trafficEl) trafficEl.textContent = '+' + trafficGain + '%';
+    };
+    roiSlider.addEventListener('input', updateRoi);
+  }
+
+  // Interactive Google SERP Snippet Simulator
+  const simTitle = $('#simTitleInput');
+  const simDesc = $('#simDescInput');
+  const simSlug = $('#simSlugInput');
+
+  if (simTitle && simDesc) {
+    const updateSerpSim = () => {
+      const title = simTitle.value.trim() || 'Your Page Title Goes Here';
+      const desc = simDesc.value.trim() || 'Your page description will appear here in Google search engine snippets.';
+      let slug = (simSlug?.value.trim() || 'services/commercial-security').replace(/^\/+/, '');
+
+      const estPixels = Math.round(title.length * 9.3);
+      const charCountEl = $('#simCharCount');
+      const pixelWidthEl = $('#simPixelWidth');
+      const warnEl = $('#simPixelWarning');
+
+      if (charCountEl) charCountEl.textContent = title.length;
+      if (pixelWidthEl) pixelWidthEl.textContent = estPixels + 'px';
+
+      if (warnEl) {
+        warnEl.hidden = estPixels <= 600 && title.length <= 62;
+      }
+
+      const prevTitle = $('#simPreviewTitle');
+      const prevDesc = $('#simPreviewDesc');
+      const prevUrl = $('#simPreviewUrl');
+
+      const prevTitleMob = $('#simPreviewTitleMob');
+      const prevDescMob = $('#simPreviewDescMob');
+      const prevUrlMob = $('#simPreviewUrlMob');
+
+      if (prevTitle) prevTitle.textContent = title;
+      if (prevDesc) prevDesc.textContent = desc;
+      if (prevUrl) prevUrl.textContent = 'https://westguardssecurity.ca › ' + slug.replace(/\//g, ' › ');
+
+      if (prevTitleMob) prevTitleMob.textContent = title;
+      if (prevDescMob) prevDescMob.textContent = desc;
+      if (prevUrlMob) prevUrlMob.textContent = 'https://westguardssecurity.ca/' + slug;
+    };
+
+    simTitle.addEventListener('input', updateSerpSim);
+    simDesc.addEventListener('input', updateSerpSim);
+    simSlug?.addEventListener('input', updateSerpSim);
+  }
+
   // Interactive FAQ toggles
   $$('.faq-q').forEach((btn) => {
     btn.addEventListener('click', () => {

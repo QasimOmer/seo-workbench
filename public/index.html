@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,400..800&family=Inter:wght@400;500;550;600;650&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=2.5.0">
+<link rel="stylesheet" href="style.css?v=2.6.0">
 </head>
 <body class="on-landing">
 
@@ -96,17 +96,26 @@
 
 <!-- ═══════════════════════════ LANDING PAGE VIEW ═══════════════════════════ -->
 <div id="landingView" class="landing-view">
+  <!-- Atmospheric Ambient Glows -->
+  <div class="landing-ambient-glow glow-1" aria-hidden="true"></div>
+  <div class="landing-ambient-glow glow-2" aria-hidden="true"></div>
+  <div class="landing-ambient-glow glow-3" aria-hidden="true"></div>
+
   <header class="landing-nav">
     <div class="landing-brand">
       <span class="mark" aria-hidden="true"></span>
       <span class="landing-logo-text">SEO Workbench</span>
-      <span class="landing-ver-pill">Enterprise Edition</span>
+      <span class="landing-status-badge"><span class="landing-status-pulse"></span> v2.6.0 Enterprise</span>
     </div>
     <div class="landing-nav-links">
       <a href="#landingFeatures" class="ln-link">Features</a>
+      <a href="#landingSandbox" class="ln-link">Live Telemetry</a>
+      <a href="#landingCompare" class="ln-link">vs. Semrush</a>
+      <a href="#landingRoi" class="ln-link">ROI Calculator</a>
+      <a href="#landingSerpSim" class="ln-link">SERP Studio</a>
       <a href="#landingLadder" class="ln-link">14-Point Ladder</a>
-      <a href="#landingTeam" class="ln-link">Team &amp; RBAC</a>
-      <a href="#landingTech" class="ln-link">Architecture</a>
+      <a href="#landingTeam" class="ln-link">Team RBAC</a>
+      <a href="#landingFaq" class="ln-link">FAQ</a>
     </div>
     <div class="landing-nav-actions">
       <button class="auth-trigger-btn" id="btnLandingSignIn">Sign In</button>
@@ -115,153 +124,505 @@
   </header>
 
   <main class="landing-content">
-    <!-- Hero Section -->
+    <!-- 1. Hero Section -->
     <section class="landing-hero">
       <div class="landing-hero-badge">
         <span class="landing-badge-dot"></span>
-        <span>Enterprise Technical SEO &amp; Search Engineering Suite</span>
+        <span>Next-Gen Autonomous Technical SEO Platform</span>
+        <span class="landing-badge-arrow">&rarr;</span>
       </div>
       <h1 class="landing-hero-title">
         Audit, Fix, and Rank Your Site with <span class="gradient-text">Engineering Precision</span>.
       </h1>
       <p class="landing-hero-sub">
-        An autonomous diagnostic workbench for engineering and growth teams. Real-user Core Web Vitals, Google Search Console intelligence, 14-point site crawl audits, automated code fixes, and platform-sized social assets — with multi-user Role-Based Access Control.
+        An autonomous diagnostic workbench built for engineers and growth teams. Real-user Core Web Vitals telemetry, Google Search Console striking-distance intelligence, 14-point dependency crawls, deterministic code patches, and multi-user Role-Based Access Control.
       </p>
 
       <!-- Instant Audit Launcher Bar -->
       <div class="landing-quick-audit">
         <div class="lqa-input-wrap">
           <span class="lqa-prefix">https://</span>
-          <input type="text" id="landingQuickUrl" placeholder="your-domain.com" autocomplete="off" spellcheck="false">
+          <input type="text" id="landingQuickUrl" value="westguardssecurity.ca" placeholder="your-domain.com" autocomplete="off" spellcheck="false">
         </div>
         <button class="go xl lqa-btn" id="btnLandingQuickAudit">⚡ Run Free Audit</button>
       </div>
-      <div class="lqa-hints">
-        <span>&check; 14-Point Diagnostic</span>
-        <span>&check; Core Web Vitals</span>
-        <span>&check; Search Console Ready</span>
-        <span>&check; Zero Setup Needed</span>
+
+      <!-- Quick Domain Sandbox Chips -->
+      <div class="lqa-chips-bar">
+        <span class="lqa-chips-label">Instant Live Previews:</span>
+        <button type="button" class="lqa-chip active" data-domain="westguardssecurity.ca">westguardssecurity.ca</button>
+        <button type="button" class="lqa-chip" data-domain="stripe.com">stripe.com</button>
+        <button type="button" class="lqa-chip" data-domain="shopify.com">shopify.com</button>
+        <button type="button" class="lqa-chip" data-domain="github.com">github.com</button>
       </div>
 
-      <div class="landing-hero-ctas" style="margin-top:20px">
+      <div class="lqa-hints">
+        <span>&check; 14-Point Dependency Ladder</span>
+        <span>&check; 6-Month CrUX P75 History</span>
+        <span>&check; Deterministic Code Fixes</span>
+        <span>&check; Exportable JSON / CSV</span>
+      </div>
+
+      <div class="landing-hero-ctas" style="margin-top:22px">
         <button class="go xl" id="btnHeroStart">🚀 Sign In / Create Account</button>
         <button class="go ghost xl" id="btnHeroDemo">🛠️ Launch Workbench (Demo Mode)</button>
       </div>
 
-      <!-- Live Dashboard Preview Card -->
-      <div class="landing-mockup-card">
+      <!-- 2. Live Interactive Telemetry Sandbox Mockup -->
+      <div class="landing-mockup-card" id="landingSandbox">
         <div class="mockup-header">
           <div class="mockup-dots"><span></span><span></span><span></span></div>
-          <div class="mockup-search-bar">https://your-site.com &mdash; Technical Health Score: <b>94 / 100</b></div>
-          <div class="mockup-status-badge">&check; Audit Clean</div>
+          <div class="mockup-url-bar">
+            <span class="mub-lock">🔒</span>
+            <span class="mub-domain" id="landingMockupDomain">https://westguardssecurity.ca</span>
+            <span class="mub-badge" id="landingMockupStatus">200 OK</span>
+            <span class="mub-ttfb" id="landingMockupTtfb">TTFB: 142ms</span>
+            <span class="mub-proto">HTTP/3 (QUIC)</span>
+            <span class="mub-tls">TLS 1.3</span>
+          </div>
+          <div class="mockup-status-badge" id="landingMockupScore">
+            <span class="msb-dot"></span> Health Score: <b>94 / 100</b>
+          </div>
         </div>
-        <div class="mockup-body">
-          <div class="mockup-col">
-            <div class="mockup-card-metric">
-              <span class="mcm-label">Crawl Coverage</span>
-              <span class="mcm-val">1,248 <small>Clean URLs</small></span>
-              <span class="mcm-note text-pass">&check; Zero Canonical Loops</span>
+
+        <div class="mockup-body-grid">
+          <!-- Column 1: CrUX P75 Real-User Telemetry -->
+          <div class="mockup-panel">
+            <div class="mp-hd">
+              <span class="mp-title">Real-User Speed (CrUX P75)</span>
+              <span class="mp-tag pass">98.4% Passing</span>
             </div>
+            <div class="mp-vitals">
+              <div class="vital-item">
+                <span class="vi-name">LCP P75</span>
+                <span class="vi-val text-pass" id="telemetryLcpVal">1.18s</span>
+                <span class="vi-grade pass">Good</span>
+              </div>
+              <div class="vital-item">
+                <span class="vi-name">INP P75</span>
+                <span class="vi-val text-pass" id="telemetryInpVal">46ms</span>
+                <span class="vi-grade pass">Fast</span>
+              </div>
+              <div class="vital-item">
+                <span class="vi-name">CLS P75</span>
+                <span class="vi-val text-pass" id="telemetryClsVal">0.012</span>
+                <span class="vi-grade pass">Stable</span>
+              </div>
+            </div>
+            <div class="mp-metric-bar" title="94% Good, 5% Needs Improvement, 1% Poor">
+              <div class="bar-seg pass" style="width: 94%"></div>
+              <div class="bar-seg warn" style="width: 5%"></div>
+              <div class="bar-seg fault" style="width: 1%"></div>
+            </div>
+            <div class="mp-footer-note">Google Ranking Factor verified across 2.4M Chrome sessions</div>
           </div>
-          <div class="mockup-col">
-            <div class="mockup-card-metric">
-              <span class="mcm-label">Real-User Speed (CrUX)</span>
-              <span class="mcm-val">1.2s <small>LCP P75</small></span>
-              <span class="mcm-note text-pass">&check; 98% Good Sessions</span>
+
+          <!-- Column 2: Crawl Topology & Click Depth -->
+          <div class="mockup-panel">
+            <div class="mp-hd">
+              <span class="mp-title">Crawl Topology &amp; PageRank</span>
+              <span class="mp-tag info" id="telemetryUrlsVal">1,480 URLs</span>
             </div>
+            <div class="mp-stat-row">
+              <div>
+                <span class="stat-num" id="telemetryCleanUrls">1,480</span>
+                <span class="stat-lbl">Indexable URLs</span>
+              </div>
+              <div>
+                <span class="stat-num text-pass">0</span>
+                <span class="stat-lbl">Canonical Loops</span>
+              </div>
+              <div>
+                <span class="stat-num text-pass">0</span>
+                <span class="stat-lbl">Orphan Pages</span>
+              </div>
+            </div>
+            <div class="mp-depth-wrap">
+              <div class="depth-labels">
+                <span>Click Depth 1: <b id="telemetryDepthD1">18%</b></span>
+                <span>Depth 2: <b id="telemetryDepthD2">52%</b></span>
+                <span>Depth 3: <b id="telemetryDepthD3">26%</b></span>
+                <span>Depth 4+: <b>4%</b></span>
+              </div>
+              <div class="mp-metric-bar">
+                <div class="bar-seg pass" style="width: 18%"></div>
+                <div class="bar-seg note" style="width: 52%"></div>
+                <div class="bar-seg purple" style="width: 26%"></div>
+                <div class="bar-seg warn" style="width: 4%"></div>
+              </div>
+            </div>
+            <div class="mp-footer-note">Optimal link juice distribution; 96% within 3 clicks</div>
           </div>
-          <div class="mockup-col">
-            <div class="mockup-card-metric">
-              <span class="mcm-label">Search Console Insights</span>
-              <span class="mcm-val">+34.8% <small>CTR Opportunity</small></span>
-              <span class="mcm-note text-note">&check; 12 Striking Distance Queries</span>
+
+          <!-- Column 3: Search Console Striking Distance -->
+          <div class="mockup-panel">
+            <div class="mp-hd">
+              <span class="mp-title">GSC Striking Distance</span>
+              <span class="mp-tag warn" id="telemetryGscQueriesVal">14 Opportunities</span>
             </div>
+            <div class="mp-gain-box">
+              <div class="gain-highlight">
+                <span class="gh-val" id="telemetryGscGain">+38.4%</span>
+                <span class="gh-lbl">Projected Organic Traffic Lift</span>
+              </div>
+              <p class="gain-desc">High-impression queries currently ranking on Page 2 (pos 4&ndash;18):</p>
+              <div class="gain-query-chip" id="telemetryGscQueryChip">
+                <span class="gqc-icon">🎯</span>
+                <span class="gqc-text" id="telemetryGscQueryText">&ldquo;commercial security guard services vancouver&rdquo;</span>
+                <span class="gqc-pos">Pos 5.8 &bull; 24.8k Impr</span>
+              </div>
+            </div>
+            <div class="mp-footer-note">Minor H1 &amp; title meta optimization will push to top 3</div>
           </div>
-          <div class="mockup-col">
-            <div class="mockup-card-metric">
-              <span class="mcm-label">Team &amp; Access</span>
-              <span class="mcm-val">RBAC <small>Enabled</small></span>
-              <span class="mcm-note text-pass">&check; Owner &bull; Admin &bull; Editor &bull; Viewer</span>
+
+          <!-- Column 4: Deterministic Diagnostic Scorecard -->
+          <div class="mockup-panel">
+            <div class="mp-hd">
+              <span class="mp-title">14-Point Diagnostic Ladder</span>
+              <span class="mp-tag pass" id="telemetryLadderScore">14 / 14 Pass</span>
             </div>
+            <ul class="mp-checklist">
+              <li class="checked"><span class="ck-icon">&check;</span> Host Reachable &amp; TLS 1.3 (Grade A)</li>
+              <li class="checked"><span class="ck-icon">&check;</span> Robots.txt Disallow Audit (Clean)</li>
+              <li class="checked"><span class="ck-icon">&check;</span> Canonical Hygiene (Self-Referential)</li>
+              <li class="checked"><span class="ck-icon">&check;</span> Schema JSON-LD (LocalBusiness &amp; FAQ)</li>
+              <li class="checked"><span class="ck-icon">&check;</span> Security Headers (HSTS, CSP, X-Frame)</li>
+            </ul>
+            <div class="mp-footer-note">Enterprise security headers &amp; zero crawler traps</div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- 6 Core Capabilities -->
+    <!-- 3. Trusted By Engineering Teams Marquee -->
+    <div class="landing-marquee-sec">
+      <span class="lms-kicker">ENGINEERED FOR MODERN TECH STACKS &amp; ARCHITECTURES</span>
+      <div class="lms-logos">
+        <div class="lms-logo-item"><span class="lms-icon">▲</span> Next.js</div>
+        <div class="lms-logo-item"><span class="lms-icon">⚡</span> Vercel</div>
+        <div class="lms-logo-item"><span class="lms-icon">🛡️</span> Cloudflare</div>
+        <div class="lms-logo-item"><span class="lms-icon">🛍️</span> Shopify Plus</div>
+        <div class="lms-logo-item"><span class="lms-icon">🌐</span> WordPress VIP</div>
+        <div class="lms-logo-item"><span class="lms-icon">🚀</span> Astro</div>
+        <div class="lms-logo-item"><span class="lms-icon">📦</span> Webflow</div>
+        <div class="lms-logo-item"><span class="lms-icon">🐙</span> GitHub Actions</div>
+      </div>
+    </div>
+
+    <!-- 4. Interactive Bento Grid: 6 Core Capabilities -->
     <section class="landing-section" id="landingFeatures">
       <div class="landing-sec-hd">
         <span class="landing-sec-kicker">Unified Search Engine Intelligence</span>
-        <h2>Everything you need to find faults and rank higher</h2>
-        <p>Built for engineers and SEO leads who need facts, code, and dated work plans — not opaque scores.</p>
+        <h2>Everything you need to diagnose, patch, and rank</h2>
+        <p>Built for developers, technical SEOs, and growth leads who require deterministic root causes, ready-to-commit code patches, and dated work plans — not opaque arbitrary scores.</p>
       </div>
 
-      <div class="landing-grid-3">
-        <div class="landing-feat-box">
-          <div class="lfb-icon" style="background:rgba(108,168,245,.15);color:var(--note)">🪜</div>
-          <h3>14-Point Diagnostic Ladder</h3>
-          <p>Orders issues by the severity of damage to search engines: DNS/TLS &rarr; Crawlability &rarr; Canonicals &rarr; Indexability &rarr; Content &rarr; Speed &rarr; Schema.</p>
+      <div class="landing-bento-grid">
+        <!-- Card 1 -->
+        <div class="bento-card bento-wide">
+          <div class="bc-badge">Core Engine</div>
+          <div class="bc-icon-wrap" style="background:rgba(108,168,245,.15);color:var(--note)">🪜</div>
+          <h3>The 14-Rung Dependency Ladder</h3>
+          <p>Orders issues by the severity of structural damage to search bots: DNS/TLS &rarr; Crawlability &rarr; Canonicals &rarr; Indexability &rarr; Content &rarr; Speed &rarr; Schema. Fixing content depth on a URL blocked by robots.txt is wasted effort; the ladder enforces fixing prerequisites in the exact sequence Googlebot processes them.</p>
+          <div class="bento-preview-chips">
+            <span class="bpc-pill">&check; Host Reachable</span>
+            <span class="bpc-pill">&check; Robots.txt Clean</span>
+            <span class="bpc-pill">&check; Canonical Integrity</span>
+            <span class="bpc-pill">&check; Status 200</span>
+            <span class="bpc-pill">&check; Core Web Vitals</span>
+          </div>
         </div>
 
-        <div class="landing-feat-box">
-          <div class="lfb-icon" style="background:rgba(76,195,138,.15);color:var(--pass)">⚡</div>
-          <h3>Real-User Field Speed (CrUX &amp; PSI)</h3>
-          <p>Pairs 6 months of real-user Chrome UX Report history with lab PageSpeed audits, spotting LCP, INP, and CLS bottlenecks across mobile and desktop.</p>
+        <!-- Card 2 -->
+        <div class="bento-card">
+          <div class="bc-badge">Real-World Speed</div>
+          <div class="bc-icon-wrap" style="background:rgba(76,195,138,.15);color:var(--pass)">⚡</div>
+          <h3>CrUX P75 Real-User Telemetry</h3>
+          <p>Pairs 6 months of historical field data from real Chrome users with synthetic lab PageSpeed simulations. Pinpoints exact LCP, INP, and CLS bottlenecks across mobile and desktop devices.</p>
         </div>
 
-        <div class="landing-feat-box">
-          <div class="lfb-icon" style="background:rgba(217,163,67,.15);color:var(--warn)">📈</div>
-          <h3>Search Console Striking Distance</h3>
-          <p>Surfaces high-impression queries ranking on positions 4&ndash;20 where a small title or intent tweak wins instant high-intent organic clicks.</p>
+        <!-- Card 3 -->
+        <div class="bento-card">
+          <div class="bc-badge">GSC Revenue Engine</div>
+          <div class="bc-icon-wrap" style="background:rgba(217,163,67,.15);color:var(--warn)">📈</div>
+          <h3>Striking Distance Intelligence</h3>
+          <p>Surfaces high-impression queries ranking in positions 4&ndash;20 where a small title, H1, or intent refinement generates immediate organic search revenue and clicks.</p>
         </div>
 
-        <div class="landing-feat-box">
-          <div class="lfb-icon" style="background:rgba(139,92,246,.15);color:var(--role-owner)">🤖</div>
-          <h3>Deterministic &amp; AI Fix Generators</h3>
-          <p>Generates ready-to-paste robots.txt rules, valid JSON-LD schemas, htaccess/Nginx redirects, and editorial content briefs with zero hallucinations.</p>
+        <!-- Card 4 -->
+        <div class="bento-card">
+          <div class="bc-badge">Autonomous Patches</div>
+          <div class="bc-icon-wrap" style="background:rgba(168,85,247,.15);color:var(--purple)">🤖</div>
+          <h3>Deterministic Code Patch Generator</h3>
+          <p>Generates copy-pasteable robots.txt rules, valid JSON-LD schemas, Nginx &amp; Apache redirects, and content briefs with zero AI hallucinations.</p>
         </div>
 
-        <div class="landing-feat-box">
-          <div class="lfb-icon" style="background:rgba(240,115,106,.15);color:var(--fault)">🎨</div>
-          <h3>Social Post &amp; Artwork Studio</h3>
-          <p>Turns your crawl insights into multi-platform visual posts with crisp vector SVG artwork tailored for LinkedIn, X, and Instagram feeds.</p>
+        <!-- Card 5 -->
+        <div class="bento-card">
+          <div class="bc-badge">Creative Studio</div>
+          <div class="bc-icon-wrap" style="background:rgba(240,115,106,.15);color:var(--fault)">🎨</div>
+          <h3>Social Post &amp; Vector Artwork Studio</h3>
+          <p>Transforms technical crawl insights into publication-ready visual posts with sharp vector SVG artwork sized for LinkedIn, X (Twitter), and Instagram feeds.</p>
         </div>
 
-        <div class="landing-feat-box">
-          <div class="lfb-icon" style="background:rgba(59,130,246,.15);color:var(--role-admin)">👥</div>
-          <h3>Enterprise RBAC &amp; Team Roles</h3>
-          <p>Granular access control: invite teammates as Viewers (read-only), Editors (run crawls &amp; generate copy), Admins, or Owners with audit logging.</p>
+        <!-- Card 6 -->
+        <div class="bento-card">
+          <div class="bc-badge">Enterprise RBAC</div>
+          <div class="bc-icon-wrap" style="background:rgba(99,102,241,.15);color:var(--accent)">👥</div>
+          <h3>Multi-Seat Role-Based Access</h3>
+          <p>Granular access control: invite team members as Viewers (read-only audit stakeholder), Editors (run crawls &amp; generate copy), Admins, or Organization Owners.</p>
         </div>
       </div>
     </section>
 
-    <!-- Complete 14-Rung Diagnostic Ladder -->
-    <section class="landing-section alt" id="landingLadder">
+    <!-- 5. Competitor Capabilities Matrix: SEO Workbench vs Screaming Frog vs Semrush -->
+    <section class="landing-section alt" id="landingCompare">
+      <div class="landing-sec-hd">
+        <span class="landing-sec-kicker">Head-to-Head Architecture</span>
+        <h2>Why Engineering Teams Choose SEO Workbench</h2>
+        <p>A modern alternative to desktop-bound legacy crawlers and bloated subscription toolbars.</p>
+      </div>
+
+      <div class="landing-compare-table-wrap">
+        <table class="landing-compare-table">
+          <thead>
+            <tr>
+              <th class="col-feature">Capability / Architecture</th>
+              <th class="col-workbench">
+                <div class="th-brand">
+                  <span class="mark sm" aria-hidden="true"></span>
+                  <b>SEO Workbench</b>
+                </div>
+                <span class="th-badge">Next-Gen SaaS</span>
+              </th>
+              <th class="col-competitor">Screaming Frog</th>
+              <th class="col-competitor">Semrush / Ahrefs</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="feat-name">
+                <b>Cloud Serverless Crawling</b>
+                <span>Runs in the cloud without crashing your laptop's RAM</span>
+              </td>
+              <td class="res-workbench"><span class="badge-pass">&check; Native Cloud Stream</span></td>
+              <td class="res-other"><span class="badge-fault">&cross; Desktop RAM Bound</span></td>
+              <td class="res-other"><span class="badge-pass">&check; Cloud Based</span></td>
+            </tr>
+            <tr>
+              <td class="feat-name">
+                <b>Real-User CrUX P75 6-Month History</b>
+                <span>Evaluates Google's actual ranking signals from Chrome users</span>
+              </td>
+              <td class="res-workbench"><span class="badge-pass">&check; Integrated CrUX + PSI</span></td>
+              <td class="res-other"><span class="badge-fault">&cross; PSI Lab Only</span></td>
+              <td class="res-other"><span class="badge-warn">&sim; Aggregated Only</span></td>
+            </tr>
+            <tr>
+              <td class="feat-name">
+                <b>14-Point Strict Dependency Ladder</b>
+                <span>Enforces fixing blocking issues in exact crawler order</span>
+              </td>
+              <td class="res-workbench"><span class="badge-pass">&check; Enforced Hierarchy</span></td>
+              <td class="res-other"><span class="badge-fault">&cross; Flat Error List</span></td>
+              <td class="res-other"><span class="badge-fault">&cross; Opaque Score (0-100)</span></td>
+            </tr>
+            <tr>
+              <td class="feat-name">
+                <b>Deterministic Code Patch Generation</b>
+                <span>Provides ready-to-merge robots.txt, JSON-LD, Nginx fixes</span>
+              </td>
+              <td class="res-workbench"><span class="badge-pass">&check; Copy-Paste Patches</span></td>
+              <td class="res-other"><span class="badge-fault">&cross; Manual Developer Export</span></td>
+              <td class="res-other"><span class="badge-fault">&cross; No Code Synthesis</span></td>
+            </tr>
+            <tr>
+              <td class="feat-name">
+                <b>Built-in Vector Social Art Studio</b>
+                <span>Generates platform-sized SVG artwork for social distribution</span>
+              </td>
+              <td class="res-workbench"><span class="badge-pass">&check; Vector SVG Generator</span></td>
+              <td class="res-other"><span class="badge-fault">&cross; None</span></td>
+              <td class="res-other"><span class="badge-fault">&cross; None</span></td>
+            </tr>
+            <tr>
+              <td class="feat-name">
+                <b>GSC Striking Distance Engine</b>
+                <span>Automated detection of pos 4-20 high-impression keywords</span>
+              </td>
+              <td class="res-workbench"><span class="badge-pass">&check; Instant Opportunity Filter</span></td>
+              <td class="res-other"><span class="badge-fault">&cross; Requires GSC CSV import</span></td>
+              <td class="res-other"><span class="badge-warn">$$$ High-tier add-on</span></td>
+            </tr>
+            <tr>
+              <td class="feat-name">
+                <b>Team RBAC &amp; Granular Permissions</b>
+                <span>Owner, Admin, Editor, Viewer access with cryptographic sessions</span>
+              </td>
+              <td class="res-workbench"><span class="badge-pass">&check; 4 Role Hierarchy</span></td>
+              <td class="res-other"><span class="badge-fault">&cross; Single Machine License</span></td>
+              <td class="res-other"><span class="badge-warn">$$$ Expensive Seat Fees</span></td>
+            </tr>
+            <tr>
+              <td class="feat-name">
+                <b>Total Cost of Ownership</b>
+                <span>Transparent deployment without monthly per-seat gouging</span>
+              </td>
+              <td class="res-workbench"><b>Self-Hosted or Cloud Pro</b></td>
+              <td class="res-other">$259 / yr / workstation</td>
+              <td class="res-other">$249 &ndash; $499+ / mo / user</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 6. Interactive Developer ROI & Hours Saved Calculator -->
+    <section class="landing-section" id="landingRoi">
+      <div class="landing-sec-hd">
+        <span class="landing-sec-kicker">Interactive Value Estimator</span>
+        <h2>Calculate Your Engineering Time Saved</h2>
+        <p>See how much developer and SEO consultant time you reclaim with automated 14-point diagnostics and instant code patches.</p>
+      </div>
+
+      <div class="landing-roi-card">
+        <div class="roi-slider-block">
+          <div class="roi-slider-header">
+            <span class="rsh-label">Site Scale / Portfolio Size:</span>
+            <span class="rsh-val" id="landingRoiUrlDisplay">2,500 URLs</span>
+          </div>
+          <input type="range" id="landingRoiSlider" min="100" max="50000" step="100" value="2500" class="roi-range-input">
+          <div class="roi-slider-ticks">
+            <span>100 URLs</span>
+            <span>5,000 URLs</span>
+            <span>25,000 URLs</span>
+            <span>50,000+ URLs</span>
+          </div>
+        </div>
+
+        <div class="roi-results-grid">
+          <div class="roi-res-item">
+            <span class="rri-val text-pass" id="landingRoiHours">48 hrs</span>
+            <span class="rri-lbl">Audit &amp; Triage Hours Saved / Mo</span>
+            <span class="rri-desc">Eliminates manual spreadsheet exports and error triage</span>
+          </div>
+          <div class="roi-res-item">
+            <span class="rri-val text-note" id="landingRoiCost">$4,080</span>
+            <span class="rri-lbl">Estimated Monthly Engineering Savings</span>
+            <span class="rri-desc">Calculated at standard $85/hr search engineering rate</span>
+          </div>
+          <div class="roi-res-item">
+            <span class="rri-val text-purple" id="landingRoiSpeed">&lt; 90s</span>
+            <span class="rri-lbl">Time to First Actionable Code Patch</span>
+            <span class="rri-desc">Direct copy-paste fixes for robots.txt, schema, redirects</span>
+          </div>
+          <div class="roi-res-item">
+            <span class="rri-val text-warn" id="landingRoiTraffic">+36.4%</span>
+            <span class="rri-lbl">Striking Distance Traffic Upside</span>
+            <span class="rri-desc">Average growth captured from positions 4&ndash;20 query optimizations</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 7. Interactive SERP Snippet Simulator Widget -->
+    <section class="landing-section alt" id="landingSerpSim">
+      <div class="landing-sec-hd">
+        <span class="landing-sec-kicker">Interactive Sandbox</span>
+        <h2>Google SERP Snippet Simulator</h2>
+        <p>Test your page titles, meta descriptions, and rich snippets in real time. Validates desktop pixel truncation limits (600px) and mobile display wrapping.</p>
+      </div>
+
+      <div class="landing-serp-sim-wrap">
+        <div class="serp-sim-inputs">
+          <div class="form-group">
+            <label for="simTitleInput">Page Title Tag (<span id="simCharCount">58</span> chars &bull; <span id="simPixelWidth">540px</span> / 600px)</label>
+            <input type="text" id="simTitleInput" class="sim-input" value="Top Rated Vancouver Security Services | Westguards Security" spellcheck="false">
+            <div class="sim-warning" id="simPixelWarning" hidden>&warning; Warning: Title exceeds Google desktop 600px limit and will truncate with ellipses!</div>
+          </div>
+          <div class="form-group">
+            <label for="simDescInput">Meta Description Tag</label>
+            <textarea id="simDescInput" class="sim-input" rows="3" spellcheck="false">Professional licensed security guards, mobile patrol, and concierge protection across Vancouver and BC. 24/7 dispatched protection with verified audit compliance.</textarea>
+          </div>
+          <div class="form-group">
+            <label for="simSlugInput">Target URL Path</label>
+            <input type="text" id="simSlugInput" class="sim-input" value="services/commercial-security" spellcheck="false">
+          </div>
+        </div>
+
+        <div class="serp-sim-previews">
+          <!-- Desktop Preview -->
+          <div class="serp-preview-box desktop">
+            <div class="spb-hd">
+              <span class="spb-icon">💻</span>
+              <span>Google Desktop Search Result Preview</span>
+            </div>
+            <div class="google-desktop-snippet">
+              <div class="g-url-row">
+                <span class="g-favicon">🛡️</span>
+                <div class="g-cite">
+                  <span class="g-site">Westguards Security</span>
+                  <span class="g-breadcrumb" id="simPreviewUrl">https://westguardssecurity.ca &rsaquo; services &rsaquo; commercial-security</span>
+                </div>
+              </div>
+              <div class="g-title" id="simPreviewTitle">Top Rated Vancouver Security Services | Westguards Security</div>
+              <div class="g-stars-row">
+                <span class="g-stars">★★★★★</span>
+                <span class="g-rating">Rating: 4.9 &bull; 128 reviews &bull; Free Quote</span>
+              </div>
+              <div class="g-desc" id="simPreviewDesc">Professional licensed security guards, mobile patrol, and concierge protection across Vancouver and BC. 24/7 dispatched protection with verified audit compliance.</div>
+            </div>
+          </div>
+
+          <!-- Mobile Preview -->
+          <div class="serp-preview-box mobile">
+            <div class="spb-hd">
+              <span class="spb-icon">📱</span>
+              <span>Google Mobile Card Preview</span>
+            </div>
+            <div class="google-mobile-snippet">
+              <div class="gm-top-row">
+                <span class="gm-icon">🛡️</span>
+                <div class="gm-meta">
+                  <span class="gm-source">westguardssecurity.ca</span>
+                  <span class="gm-path" id="simPreviewUrlMob">https://westguardssecurity.ca/services/commercial-security</span>
+                </div>
+              </div>
+              <div class="gm-title" id="simPreviewTitleMob">Top Rated Vancouver Security Services | Westguards Security</div>
+              <div class="gm-desc" id="simPreviewDescMob">Professional licensed security guards, mobile patrol, and concierge protection across Vancouver and BC. 24/7 dispatched protection with verified audit compliance.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 8. Complete 14-Rung Diagnostic Ladder -->
+    <section class="landing-section" id="landingLadder">
       <div class="landing-sec-hd">
         <span class="landing-sec-kicker">Ordered Engineering Diagnostics</span>
         <h2>The 14-Rung SEO Diagnostic Ladder</h2>
         <p>Fixing content depth on a page blocked by robots.txt is wasted effort. The ladder enforces fixing prerequisites in the exact order search engines process them.</p>
       </div>
       <div class="landing-ladder-grid">
-        <div class="lll-item"><span class="lll-num">01</span><div><b>Host Reachable &amp; TLS</b><p>DNS resolution, HTTPS certificate valid, redirect chains from HTTP/non-www.</p></div></div>
-        <div class="lll-item"><span class="lll-num">02</span><div><b>Robots.txt &amp; Crawl Blocks</b><p>No unintentional disallow rules blocking Googlebot from CSS, JS, or money pages.</p></div></div>
-        <div class="lll-item"><span class="lll-num">03</span><div><b>Canonical Integrity</b><p>Self-referential, cross-domain, or parameterized canonicals verified without loops.</p></div></div>
-        <div class="lll-item"><span class="lll-num">04</span><div><b>Indexability &amp; Headers</b><p>X-Robots-Tag, noindex meta tags, and 404/301 status hygiene.</p></div></div>
-        <div class="lll-item"><span class="lll-num">05</span><div><b>Schema &amp; Structured Data</b><p>Valid JSON-LD markup without syntax errors for articles, products, and FAQs.</p></div></div>
-        <div class="lll-item"><span class="lll-num">06</span><div><b>Response Status &amp; Redirects</b><p>Eliminates 301 redirect chains, 5xx server drops, and soft 404 dead ends.</p></div></div>
-        <div class="lll-item"><span class="lll-num">07</span><div><b>Content Quality &amp; Thin Pages</b><p>Identifies duplicate content, thin bodies (&lt;300 words), and boilerplate bloat.</p></div></div>
-        <div class="lll-item"><span class="lll-num">08</span><div><b>Heading &amp; Title Architecture</b><p>Strict H1 uniqueness, missing meta descriptions, and truncated title tags.</p></div></div>
-        <div class="lll-item"><span class="lll-num">09</span><div><b>Internal Link Flow &amp; Orphans</b><p>Finds unlinked orphan pages and optimizes PageRank flow to conversion pages.</p></div></div>
-        <div class="lll-item"><span class="lll-num">10</span><div><b>Real-User Core Web Vitals</b><p>Audits 75th-percentile real-world LCP, INP, and CLS against Google's thresholds.</p></div></div>
-        <div class="lll-item"><span class="lll-num">11</span><div><b>Mobile &amp; Viewport Usability</b><p>Validates mobile-first indexing, responsive viewport tags, and touch targets.</p></div></div>
-        <div class="lll-item"><span class="lll-num">12</span><div><b>Security &amp; Response Headers</b><p>HSTS, CSP, X-Content-Type-Options, and Referrer-Policy audit scores.</p></div></div>
-        <div class="lll-item"><span class="lll-num">13</span><div><b>Social Metadata &amp; Open Graph</b><p>Verifies og:image, twitter:card, and social preview fallbacks for viral sharing.</p></div></div>
-        <div class="lll-item"><span class="lll-num">14</span><div><b>Hreflang &amp; Internationalization</b><p>Validates reciprocal language alternates and prevents regional indexing penalties.</p></div></div>
+        <div class="lll-item"><span class="lll-num">01</span><div><span class="lll-tag crit">CRITICAL</span><b>Host Reachable &amp; TLS</b><p>DNS resolution, HTTPS certificate validity, redirect chains from HTTP/non-www.</p></div></div>
+        <div class="lll-item"><span class="lll-num">02</span><div><span class="lll-tag crit">CRITICAL</span><b>Robots.txt &amp; Crawl Blocks</b><p>Ensures no unintentional disallow rules block Googlebot from CSS, JS, or money pages.</p></div></div>
+        <div class="lll-item"><span class="lll-num">03</span><div><span class="lll-tag crit">CRITICAL</span><b>Canonical Integrity</b><p>Self-referential, cross-domain, or parameterized canonicals verified without loops.</p></div></div>
+        <div class="lll-item"><span class="lll-num">04</span><div><span class="lll-tag crit">CRITICAL</span><b>Indexability &amp; Headers</b><p>X-Robots-Tag, noindex meta tags, and 404/301 status code hygiene.</p></div></div>
+        <div class="lll-item"><span class="lll-num">05</span><div><span class="lll-tag hyg">HYGIENE</span><b>Schema &amp; Structured Data</b><p>Valid JSON-LD markup without syntax errors for articles, products, and FAQs.</p></div></div>
+        <div class="lll-item"><span class="lll-num">06</span><div><span class="lll-tag hyg">HYGIENE</span><b>Response Status &amp; Redirects</b><p>Eliminates 301 redirect chains, 5xx server drops, and soft 404 dead ends.</p></div></div>
+        <div class="lll-item"><span class="lll-num">07</span><div><span class="lll-tag hyg">HYGIENE</span><b>Content Quality &amp; Thin Pages</b><p>Identifies duplicate content, thin bodies (&lt;300 words), and boilerplate bloat.</p></div></div>
+        <div class="lll-item"><span class="lll-num">08</span><div><span class="lll-tag hyg">HYGIENE</span><b>Heading &amp; Title Architecture</b><p>Strict H1 uniqueness, missing meta descriptions, and truncated title tags.</p></div></div>
+        <div class="lll-item"><span class="lll-num">09</span><div><span class="lll-tag disc">DISCOVERY</span><b>Internal Link Flow &amp; Orphans</b><p>Finds unlinked orphan pages and optimizes PageRank flow to conversion pages.</p></div></div>
+        <div class="lll-item"><span class="lll-num">10</span><div><span class="lll-tag disc">DISCOVERY</span><b>Real-User Core Web Vitals</b><p>Audits 75th-percentile real-world LCP, INP, and CLS against Google's thresholds.</p></div></div>
+        <div class="lll-item"><span class="lll-num">11</span><div><span class="lll-tag rnk">RANKING</span><b>Mobile &amp; Viewport Usability</b><p>Validates mobile-first indexing, responsive viewport tags, and touch targets.</p></div></div>
+        <div class="lll-item"><span class="lll-num">12</span><div><span class="lll-tag rnk">RANKING</span><b>Security &amp; Response Headers</b><p>HSTS, CSP, X-Content-Type-Options, and Referrer-Policy audit scores.</p></div></div>
+        <div class="lll-item"><span class="lll-num">13</span><div><span class="lll-tag rnk">RANKING</span><b>Social Metadata &amp; Open Graph</b><p>Verifies og:image, twitter:card, and social preview fallbacks for viral sharing.</p></div></div>
+        <div class="lll-item"><span class="lll-num">14</span><div><span class="lll-tag rnk">RANKING</span><b>Hreflang &amp; Internationalization</b><p>Validates reciprocal language alternates and prevents regional indexing penalties.</p></div></div>
       </div>
     </section>
 
-    <!-- Team & Access Section -->
-    <section class="landing-section" id="landingTeam">
+    <!-- 9. Team & Access Section -->
+    <section class="landing-section alt" id="landingTeam">
       <div class="landing-sec-hd">
         <span class="landing-sec-kicker">Team Collaboration</span>
         <h2>Multi-User Roles &amp; Granular Permissions</h2>
@@ -272,27 +633,62 @@
           <span class="user-role-pill role-owner">Owner</span>
           <h4>Full Organization Control</h4>
           <p>Complete authority over all properties, billing, team memberships, and master API keys.</p>
+          <div class="role-perms-list">&check; Workspace Deletion &bull; &check; Master Tokens &bull; &check; All Audits</div>
         </div>
         <div class="landing-role-card">
           <span class="user-role-pill role-admin">Admin</span>
           <h4>Workspace Management</h4>
           <p>Invites team members, changes roles, configures Firebase &amp; API keys, and runs all audits.</p>
+          <div class="role-perms-list">&check; Member Management &bull; &check; API Keys &bull; &check; All Audits</div>
         </div>
         <div class="landing-role-card">
           <span class="user-role-pill role-editor">Editor</span>
           <h4>Execution &amp; Creation</h4>
           <p>Runs live crawls, generates AI content briefs, social posts, and creates SEO campaigns.</p>
+          <div class="role-perms-list">&check; Run Crawls &bull; &check; Generate Patches &bull; &cross; Team Settings</div>
         </div>
         <div class="landing-role-card">
           <span class="user-role-pill role-viewer">Viewer</span>
           <h4>Read-Only Stakeholder</h4>
           <p>Safely reviews scorecards, speed trends, and Google Search Console metrics without mutation access.</p>
+          <div class="role-perms-list">&check; Read Reports &bull; &check; Export CSV &bull; &cross; Cannot Mutate</div>
         </div>
       </div>
     </section>
 
-    <!-- Interactive FAQ Section -->
-    <section class="landing-section" id="landingFaq">
+    <!-- 10. Technical Architecture & Security -->
+    <section class="landing-section" id="landingTech">
+      <div class="landing-sec-hd">
+        <span class="landing-sec-kicker">Production Specifications</span>
+        <h2>Engineered for High-Scale Enterprise Reliability</h2>
+        <p>Deploy in seconds on Vercel, Node.js, or Docker containers with zero cold-start latency.</p>
+      </div>
+      <div class="landing-specs-grid">
+        <div class="spec-box">
+          <span class="sb-kicker">INFRASTRUCTURE</span>
+          <h4>Vercel Edge &amp; Lambda Ready</h4>
+          <p>Stateless streaming crawler engine with automatic memory garbage collection. Never times out on large crawls.</p>
+        </div>
+        <div class="spec-box">
+          <span class="sb-kicker">AUTHENTICATION</span>
+          <h4>Cryptographic Stateless JWTs</h4>
+          <p>SHA-256 HMAC signed tokens supporting multi-device login, SSO federation, and local encrypted caching.</p>
+        </div>
+        <div class="spec-box">
+          <span class="sb-kicker">PRIVACY</span>
+          <h4>Zero Third-Party Tracking</h4>
+          <p>No ad trackers, no third-party cookie beacons, and fully GDPR &amp; CCPA compliant data pipelines.</p>
+        </div>
+        <div class="spec-box">
+          <span class="sb-kicker">INTEGRATIONS</span>
+          <h4>Google Search Console API</h4>
+          <p>Direct Google Search Console OAuth2 token exchange with automated token refresh and quota rate-limiting.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 11. Interactive FAQ Section -->
+    <section class="landing-section alt" id="landingFaq">
       <div class="landing-sec-hd">
         <span class="landing-sec-kicker">Frequently Asked Questions</span>
         <h2>Everything you need to know about SEO Workbench</h2>
@@ -332,10 +728,11 @@
       </div>
     </section>
 
-    <!-- Bottom CTA Banner -->
+    <!-- 12. Bottom CTA Banner -->
     <section class="landing-cta-banner">
-      <h2>Ready to take control of your technical SEO?</h2>
-      <p>Launch an audit in under 60 seconds. Connect your Search Console and Firebase team accounts anytime.</p>
+      <div class="lcb-badge">Enterprise Ready &bull; Zero Risk</div>
+      <h2>Ready to take command of your search architecture?</h2>
+      <p>Launch an audit in under 60 seconds. Connect your Search Console, invite your team, and ship deterministic fixes.</p>
       <div class="landing-hero-ctas">
         <button class="go xl" id="btnBottomSignIn">Sign In &amp; Launch Workbench &rarr;</button>
         <button class="go ghost xl" id="btnBottomDemo">Explore Demo Mode</button>
@@ -345,10 +742,14 @@
 
   <footer class="landing-footer">
     <div class="lf-left">
-      <b>SEO Workbench</b> &mdash; Autonomous Technical SEO &amp; Search Growth
+      <div class="landing-brand sm">
+        <span class="mark sm" aria-hidden="true"></span>
+        <b>SEO Workbench</b>
+      </div>
+      <span>&mdash; Autonomous Technical SEO &amp; Search Growth Engineering</span>
     </div>
     <div class="lf-right">
-      <span>Production Hardened &bull; Serverless Vercel Ready</span>
+      <span>Production Hardened &bull; Serverless Vercel Ready &bull; Version 2.6.0</span>
     </div>
   </footer>
 </div>
@@ -802,7 +1203,7 @@
   </div>
 </div>
 
-<script src="app.js?v=2.5.0"></script>
-<script src="suite.js?v=2.5.0"></script>
+<script src="app.js?v=2.6.0"></script>
+<script src="suite.js?v=2.6.0"></script>
 </body>
 </html>
