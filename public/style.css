@@ -21,12 +21,17 @@
   --note:#6CA8F5;   --note-bg:#141C2A;
   --idle:#7D8895;
 
+  --accent:#6366F1; --accent-light:#1E1B4B; --accent-dim:rgba(99,102,241,0.15);
+  --teal:#06B6D4;   --teal-bg:#083344;     --teal-dim:rgba(6,182,212,0.15);
+  --purple:#A855F7; --purple-bg:#3B0764;   --purple-dim:rgba(168,85,247,0.15);
+  --amber:#F59E0B;  --amber-bg:#451A03;    --amber-dim:rgba(245,158,11,0.15);
+
   --role-owner:#A78BFA;
   --role-admin:#60A5FA;
   --role-editor:#34D399;
   --role-viewer:#94A3B8;
 
-  --lift-1:0 1px 2px rgba(0,0,0,.35);
+  --lift-1:0 1px 3px rgba(0,0,0,.35);
   --lift-2:0 6px 18px rgba(0,0,0,.42);
   --lift-3:0 20px 56px rgba(0,0,0,.60);
   --focus:rgba(108,168,245,.28);
@@ -47,12 +52,17 @@
   --note:#2B5C9B;   --note-bg:#E7EEF8;
   --idle:#68788C;
 
+  --accent:#4F46E5; --accent-light:#EEF2FF; --accent-dim:rgba(79,70,229,0.08);
+  --teal:#0891B2;   --teal-bg:#ECFEFF;     --teal-dim:rgba(8,145,178,0.10);
+  --purple:#7C3AED; --purple-bg:#FAF5FF;   --purple-dim:rgba(124,58,237,0.10);
+  --amber:#D97706;  --amber-bg:#FFFBEB;    --amber-dim:rgba(217,119,6,0.10);
+
   --role-owner:#6B21A8;
   --role-admin:#1D4ED8;
   --role-editor:#047857;
   --role-viewer:#475569;
 
-  --lift-1:0 1px 2px rgba(15,24,38,.06);
+  --lift-1:0 1px 3px rgba(15,24,38,.06);
   --lift-2:0 4px 14px rgba(15,24,38,.10);
   --lift-3:0 18px 48px rgba(15,24,38,.20);
   --focus:rgba(43,92,155,.14);
@@ -1129,6 +1139,117 @@ body.on-landing .landing-view {
 
 /* Footer */
 .landing-footer{display:flex;align-items:center;justify-content:space-between;padding:24px 40px;border-top:1px solid var(--line);font-size:12px;color:var(--ink3);flex-wrap:wrap;gap:12px}
+
+/* ═══════════════════ Modern SaaS Dashboard (Inspiration) ═══════════════════ */
+
+/* Brand Header */
+.brand{display:flex;align-items:center;gap:10px;padding:14px 18px;height:auto;min-height:var(--bar-h);flex-shrink:0;border-bottom:1px solid var(--ground2)}
+.brand-logo-wrap{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--accent),var(--purple));display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.25);flex-shrink:0}
+.brand-info{display:flex;flex-direction:column;gap:1px;flex:1;min-width:0}
+.brand-info .bname{font-size:14px;font-weight:700;letter-spacing:-.01em;color:#fff;line-height:1.2}
+.brand-info .bsub{font-size:9px;font-family:var(--data);font-weight:600;letter-spacing:.08em;color:var(--ground-txt);text-transform:uppercase}
+
+/* Scope Selector Card ("All bots" in inspiration) */
+.rail-scope-card{display:flex;align-items:center;gap:10px;margin:12px 14px 6px;padding:9px 12px;border-radius:10px;background:var(--ground2);border:1px solid var(--ground3);cursor:pointer;transition:border-color .15s ease,background .15s ease}
+.rail-scope-card:hover{border-color:var(--ground-txt);background:var(--ground3)}
+.rsc-icon{width:26px;height:26px;border-radius:6px;background:var(--ground);display:flex;align-items:center;justify-content:center;color:var(--note);flex-shrink:0}
+.rsc-info{display:flex;flex-direction:column;min-width:0;flex:1}
+.rsc-name{font-size:12.5px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rsc-meta{font-size:10px;color:var(--ground-txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rsc-chevron{color:var(--ground-dim);display:flex;align-items:center;flex-shrink:0}
+
+/* Rail navigation group labels */
+.rail-group-label{font-size:10px;font-family:var(--data);font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ground-dim);padding:14px 14px 4px;user-select:none}
+.rail-version-label{font-size:10px;font-family:var(--data);color:var(--ground-dim);text-align:center;padding:6px 0 2px}
+
+/* Topbar Site Badge & Search */
+.topbar-site-badge{display:flex;align-items:center;gap:10px}
+.tsb-avatar{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--note),var(--accent));color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.2);flex-shrink:0}
+.topbar-center{flex:1;display:flex;justify-content:center;max-width:440px;margin:0 auto}
+.topbar-search{display:flex;align-items:center;gap:8px;width:100%;max-width:400px;background:var(--ground2);border:1px solid var(--ground3);border-radius:8px;padding:6px 12px;font-size:12px;color:var(--ground-dim);cursor:pointer;transition:border-color .15s ease}
+.topbar-search:hover{border-color:var(--ground-txt);color:var(--ground-txt)}
+.topbar-search kbd{margin-left:auto;font-family:var(--data);font-size:10px;padding:2px 5px;background:var(--ground3);border-radius:4px;color:var(--ground-txt)}
+.tb-icon-btn{background:var(--ground2);border:1px solid var(--ground3);border-radius:7px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;color:var(--ground-txt);cursor:pointer;position:relative;transition:border-color .15s ease,color .15s ease}
+.tb-icon-btn:hover{border-color:var(--ground-txt);color:#fff}
+.tb-live-dot{width:8px;height:8px;border-radius:50%;background:var(--pass);box-shadow:0 0 8px var(--pass)}
+.tb-notify-badge{position:absolute;top:6px;right:6px;width:6px;height:6px;border-radius:50%;background:var(--fault)}
+.dash-top-btn{display:inline-flex;align-items:center;gap:4px;border-radius:8px;font-size:12.5px;padding:6px 14px;background:var(--accent);border-color:var(--accent);color:#fff}
+.dash-top-btn:hover{background:var(--note);border-color:var(--note)}
+
+/* ── Dashboard Hero Greeting (Matching Inspiration Image) ── */
+.dash-hero{background:var(--raised);border:1px solid var(--line);border-radius:14px;padding:24px 28px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:18px;box-shadow:var(--lift-1)}
+.dash-hero-left{display:flex;flex-direction:column;gap:3px;min-width:260px}
+.dash-date-kicker{font-size:10.5px;font-family:var(--data);font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--ink3)}
+.dash-greeting{font-size:24px;font-weight:700;letter-spacing:-.02em;margin:0;color:var(--ink);line-height:1.2}
+.dash-user-name{color:var(--accent)}
+.dash-subtitle{font-size:13px;color:var(--ink2);margin:0}
+
+.dash-hero-right{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.dash-time-segmented{display:flex;background:var(--sunk);border:1px solid var(--line);border-radius:8px;padding:2px;gap:2px}
+.dash-time-btn{background:transparent;border:0;border-radius:6px;padding:5px 12px;font-family:var(--ui);font-size:12px;font-weight:600;color:var(--ink3);cursor:pointer;transition:background .15s ease,color .15s ease}
+.dash-time-btn:hover{color:var(--ink)}
+.dash-time-btn.active{background:var(--raised);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.dash-new-crawl-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 18px;border-radius:8px;background:var(--accent);color:#fff;border:1px solid var(--accent);font-family:var(--ui);font-size:13px;font-weight:600;cursor:pointer;transition:transform .12s ease,background .12s ease}
+.dash-new-crawl-btn:hover{background:var(--note);border-color:var(--note);transform:translateY(-1px)}
+
+/* ── Executive 4 Stat Cards Grid (Matching Inspiration Image) ── */
+.dash-stat-grid{display:grid;grid-template-columns:1.3fr 1fr 1fr 1fr;gap:16px;margin-bottom:24px}
+@media(max-width:1100px){.dash-stat-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:640px){.dash-stat-grid{grid-template-columns:1fr}}
+
+.dash-stat-card{background:var(--raised);border:1px solid var(--line);border-radius:14px;padding:20px 22px;display:flex;flex-direction:column;position:relative;overflow:hidden;box-shadow:var(--lift-1);transition:transform .15s ease,box-shadow .15s ease}
+.dash-stat-card:hover{transform:translateY(-2px);box-shadow:var(--lift-2)}
+.dash-stat-card.featured{border-left:3px solid var(--teal)}
+
+.dsc-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.dsc-icon-badge{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.dsc-icon-badge.teal{background:var(--teal-dim);color:var(--teal)}
+.dsc-icon-badge.blue{background:var(--accent-dim);color:var(--accent)}
+.dsc-icon-badge.green{background:rgba(76,195,138,0.14);color:var(--pass)}
+.dsc-icon-badge.amber{background:var(--amber-dim);color:var(--amber)}
+
+.dsc-pill{font-family:var(--data);font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:12px;letter-spacing:.02em}
+.dsc-pill.warn{background:var(--warn-bg);color:var(--warn)}
+.dsc-pill.pass{background:var(--pass-bg);color:var(--pass)}
+
+.dsc-val{font-size:32px;font-weight:750;letter-spacing:-.03em;color:var(--ink);line-height:1;margin-bottom:4px}
+.dsc-label{font-size:11px;font-family:var(--data);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3)}
+.dsc-sub{font-size:11.5px;color:var(--ink3);margin-top:4px}
+
+.dsc-sparkline-wrap{margin-top:16px;width:100%;height:52px}
+.dsc-sparkline-wrap.mini{height:30px;margin-top:10px}
+.dsc-sparkline{width:100%;height:100%;display:block;overflow:visible}
+
+/* ── Lower Section Grid: 65% left, 35% right ── */
+.dash-content-split{display:grid;grid-template-columns:1.8fr 1fr;gap:20px;align-items:start}
+@media(max-width:960px){.dash-content-split{grid-template-columns:1fr}}
+
+.dash-left-col,.dash-right-col{display:flex;flex-direction:column;gap:20px}
+.dash-card{background:var(--raised);border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:var(--lift-1)}
+.dash-card-hd{padding:18px 22px 14px;border-bottom:1px solid var(--line-soft);display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.dash-card-title{font-size:15px;font-weight:700;color:var(--ink);margin:0 0 2px}
+.dash-card-sub{font-size:12px;color:var(--ink3);margin:0}
+.dash-badge-sm{font-family:var(--data);font-size:10px;color:var(--ink2);background:var(--sunk);border:1px solid var(--line-soft);border-radius:6px;padding:2px 8px}
+
+/* Volume Chart Card */
+.dash-volume-chart{padding:16px 20px 20px}
+.dash-area-chart{width:100%;height:160px;display:block}
+.dash-chart-axis{font-family:var(--data);font-size:11px;fill:var(--ink3)}
+
+/* Recent Activity Feed */
+.dash-activity-list{display:flex;flex-direction:column}
+.dash-activity-item{display:flex;align-items:flex-start;gap:12px;padding:14px 20px;border-bottom:1px solid var(--line-soft);transition:background .12s ease}
+.dash-activity-item:last-child{border-bottom:0}
+.dash-activity-item:hover{background:var(--sunk)}
+.dai-icon{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px}
+.dai-icon.blue{background:var(--accent-dim);color:var(--accent)}
+.dai-icon.green{background:rgba(76,195,138,0.14);color:var(--pass)}
+.dai-icon.purple{background:var(--purple-dim);color:var(--purple)}
+.dai-content{flex:1;min-width:0}
+.dai-title{font-size:13px;font-weight:600;color:var(--ink);margin-bottom:1px}
+.dai-meta{font-size:11.5px;color:var(--ink2)}
+.dai-sub{font-size:10.5px;color:var(--ink3);font-family:var(--data);margin-top:2px}
+.dai-time{font-family:var(--data);font-size:10.5px;color:var(--ink3);flex-shrink:0;margin-top:2px}
 
 
 

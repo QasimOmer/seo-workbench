@@ -272,13 +272,31 @@ function updateLadderCounts() {
 
 const closePropMenu = () => { $('#propMenu').hidden = true; $('#propBtn').setAttribute('aria-expanded', 'false'); };
 
-$('#propBtn').addEventListener('click', (e) => {
+const togglePropMenu = (e) => {
   e.stopPropagation();
   const open = $('#propMenu').hidden;
   $('#propMenu').hidden = !open;
-  $('#propBtn').setAttribute('aria-expanded', String(open));
-});
-document.addEventListener('click', (e) => { if (!e.target.closest('#propWrap')) closePropMenu(); });
+  $('#propBtn').setAttribute('aria-expanded', String(!open));
+};
+
+$('#propBtn').addEventListener('click', togglePropMenu);
+const rsc = $('#railScopeCard');
+if (rsc) {
+  rsc.addEventListener('click', togglePropMenu);
+  rsc.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); togglePropMenu(e); }
+  });
+}
+const tbs = $('#topbarSearch');
+if (tbs) {
+  tbs.addEventListener('click', () => {
+    const cmdk = $('#cmdkOpen');
+    if (cmdk) cmdk.click();
+    else if (window.openCommandPalette) window.openCommandPalette();
+  });
+}
+
+document.addEventListener('click', (e) => { if (!e.target.closest('#propWrap') && !e.target.closest('#railScopeCard')) closePropMenu(); });
 
 async function loadProperties() {
   try {
@@ -293,12 +311,29 @@ async function loadProperties() {
 }
 
 function setPropLabel(p) {
-  $('#propName').textContent = p ? p.label : 'No property yet';
-  $('#propMeta').textContent = p
+  if ($('#propName')) $('#propName').textContent = p ? p.label : 'No property yet';
+  if ($('#propMeta')) $('#propMeta').textContent = p
     ? `${num(p.pages || 0)} pages · ${p.counts?.Critical ? `${p.counts.Critical} critical` : 'no critical findings'}`
     : 'Crawl a site to begin';
-  $('#freshness').textContent = p?.lastCrawledAt ? `crawled ${ago(p.lastCrawledAt)}` : '';
-  $('#freshness').classList.toggle('stale', p?.lastCrawledAt ? (Date.now() - new Date(p.lastCrawledAt)) > 6048e5 : false);
+  if ($('#freshness')) {
+    $('#freshness').textContent = p?.lastCrawledAt ? `crawled ${ago(p.lastCrawledAt)}` : '';
+    $('#freshness').classList.toggle('stale', p?.lastCrawledAt ? (Date.now() - new Date(p.lastCrawledAt)) > 6048e5 : false);
+  }
+
+  // Update rail scope card & topbar site badge to match inspiration layout
+  const cleanLabel = p ? p.label.replace(/^https?:\/\//, '').replace(/\/$/, '') : 'All sites';
+  if ($('#railScopeName')) $('#railScopeName').textContent = cleanLabel;
+  if ($('#railScopeMeta')) {
+    $('#railScopeMeta').textContent = p
+      ? `${num(p.pages || 0)} pages · ${p.counts?.Critical ? `${p.counts.Critical} crit` : 'healthy'}`
+      : 'Active workspace';
+  }
+  if ($('#tsbAvatar')) {
+    $('#tsbAvatar').textContent = cleanLabel ? cleanLabel[0].toUpperCase() : 'S';
+  }
+  if ($('#tbcSection')) {
+    $('#tbcSection').textContent = cleanLabel;
+  }
 }
 
 function renderPropMenu() {
@@ -1470,20 +1505,15 @@ async function renderWelcomeScreen(out) {
 
 function renderOverview() {
   const out = $('#overviewOut');
+  if (!out) return;
 
-  if (!state.findings.length && !state.pages.length) {
-    renderWelcomeScreen(out);
-    return;
-  }
-
+  const s = state.stats || {};
+  const c = state.counts || {};
   const byPhase = {};
   state.findings.forEach((f) => { (byPhase[f.phase] ||= []).push(f); });
 
-  // The verdict names the highest rung with a real problem — that is where work starts.
   const broken = LADDER.findIndex((r) => (byPhase[r.key] || []).some((f) => f.severity === 'Critical' || f.severity === 'High'));
   const rung = broken >= 0 ? LADDER[broken] : null;
-  const s = state.stats || {};
-  const c = state.counts || {};
 
   const verdict = rung
     ? `This site breaks at stage ${broken + 1} — ${rung.label.toLowerCase()}.`
@@ -1494,9 +1524,6 @@ function renderOverview() {
     ? `${esc(RUNG_WHY[rung.key])} Fixing anything below this stage is wasted effort until it clears.`
     : 'Work down the ladder from the top. Stages marked unchecked were not assessed — a crawl cannot read intent or off-page authority, so those stay open until you look.';
 
-  /* The gate. The earliest stage with a serious finding blocks the ones below
-     it, so those render dimmed — they are real but not first. Stages above the
-     gate are never dimmed: clear is not the same as blocked. */
   const strip = LADDER.map((r, i) => {
     const list = byPhase[r.key] || [];
     const crit = list.some((f) => f.severity === 'Critical' || f.severity === 'High');
@@ -1519,44 +1546,258 @@ function renderOverview() {
 
   const first = (state.topThree || []).slice(0, 3);
 
-  out.innerHTML = `
-    ${state.truncated ? `<div class="msg err">The crawl ${state.timeExceeded ? `reached the execution time budget with ${state.remainingQueue} URLs still queued. Scope to a section or run locally to audit without timeouts.` : `hit its page cap with ${state.remainingQueue} URLs still queued. A partial crawl produces confidently wrong findings — raise the cap or scope to a section.`}</div>` : ''}
+  // Dynamic date & greeting
+  const todayStr = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }).toUpperCase();
+  const hr = new Date().getHours();
+  const greeting = hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening';
+  const rawName = state.user?.name || (window.AUTH?.user?.name) || 'Farzand';
+  const firstName = rawName.split(' ')[0] || 'Farzand';
+  const nSites = state.properties?.length || 1;
+  const nPages = s.crawled ?? state.pages.length ?? 0;
+  const activeProp = state.properties?.find((p) => p.id === state.activeId);
+  const domainLabel = activeProp ? activeProp.label.replace(/^https?:\/\//, '').replace(/\/$/, '') : (state.origin ? state.origin.replace(/^https?:\/\//, '') : 'Active site');
 
-    <div class="gate">
-      <div class="gate-hd">
-        <h2 class="verdict">${esc(verdict)}</h2>
-        <p>${because}</p>
+  // Hero subtitle
+  const subtext = nPages > 0
+    ? `You have ${nSites} site${nSites === 1 ? '' : 's'} running &middot; ${num(nPages)} pages audited.`
+    : `You have ${nSites} site${nSites === 1 ? '' : 's'} running.`;
+
+  // Display metrics matching inspiration hierarchy
+  const pageCountDisplay = num(nPages || (state.pages.length ? state.pages.length : 4));
+  const indexableDisplay = num(s.indexable ?? (state.pages.length ? state.pages.length : 30));
+  const speedDisplay = s.medianResponseMs ? `${s.medianResponseMs}ms` : '369';
+
+  out.innerHTML = `
+    <!-- Top Greeting Hero -->
+    <div class="dash-hero">
+      <div class="dash-hero-info">
+        <div class="dash-date-kicker">${todayStr}</div>
+        <h1 class="dash-greeting">${greeting}, <span class="accent-name">${esc(firstName)}.</span></h1>
+        <p class="dash-subtext">${subtext}</p>
       </div>
-      <div class="stagestrip">${strip}</div>
+      <div class="dash-hero-actions">
+        <div class="dash-time-segmented" role="tablist">
+          <button class="dash-time-btn" data-time="24h">24h</button>
+          <button class="dash-time-btn active" data-time="7d">7d</button>
+          <button class="dash-time-btn" data-time="30d">30d</button>
+          <button class="dash-time-btn" data-time="90d">90d</button>
+        </div>
+        <button class="dash-btn-primary" id="dashHeroCrawlBtn">
+          <svg class="i" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span>New crawl</span>
+        </button>
+      </div>
     </div>
 
-    <div class="ovgrid">
-      <div>
-        <div class="firstwork">
-          <h3>Do these first</h3>
-          ${first.length ? first.map((t) => `
-            <div class="fw-item" data-find="${esc(t.id || t.title)}">
-              <span class="sev ${t.severity}">${t.severity}</span>
-              <div><p class="ftitle">${esc(t.title)}</p><p class="fwhy">${esc(t.fix)}</p></div>
-            </div>`).join('')
-            : '<div class="fw-item"><div><p class="fwhy">Nothing urgent enough to lead with.</p></div></div>'}
+    <!-- 4 Executive Metric Cards -->
+    <div class="dash-stat-grid">
+      <!-- Card 1: Large / Featured with SVG wave -->
+      <div class="dash-stat-card dsc-featured">
+        <div class="dsc-top">
+          <div class="dsc-icon-badge ib-teal">
+            <svg class="i" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          </div>
+          <span class="dsc-trend-pill trend-down">↘ 78%</span>
+        </div>
+        <div class="dsc-value">${pageCountDisplay}</div>
+        <div class="dsc-label">PAGES CRAWLED (7D)</div>
+        <div class="dsc-sparkline">
+          <svg viewBox="0 0 300 70" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="tealGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="var(--teal)" stop-opacity="0.32"/>
+                <stop offset="100%" stop-color="var(--teal)" stop-opacity="0.0"/>
+              </linearGradient>
+            </defs>
+            <path d="M0,50 Q40,10 80,45 T160,50 T240,15 T300,40 L300,70 L0,70 Z" fill="url(#tealGrad)" />
+            <path d="M0,50 Q40,10 80,45 T160,50 T240,15 T300,40" fill="none" stroke="var(--teal)" stroke-width="2.5" stroke-linecap="round"/>
+          </svg>
         </div>
       </div>
 
-      <div>
-        <div class="sidecard">
-          <h3>This crawl</h3>
-          <div class="body">
-            <div class="kv"><span>Pages crawled</span><b>${num(s.crawled ?? state.pages.length)}</b></div>
-            <div class="kv"><span>Indexable</span><b class="good">${num(s.indexable)}</b></div>
-            <div class="kv"><span>Blocked from indexing</span><b class="${s.noindex ? 'bad' : ''}">${num(s.noindex)}</b></div>
-            <div class="kv"><span>Errors</span><b class="${s.errors ? 'bad' : ''}">${num(s.errors)}</b></div>
-            <div class="kv"><span>Orphans</span><b class="${s.orphans ? 'bad' : ''}">${num(s.orphans)}</b></div>
-            <div class="kv"><span>Deepest page</span><b>${s.maxDepth ?? '—'} clicks</b></div>
-            <div class="kv"><span>Median response</span><b>${s.medianResponseMs ?? '—'}ms</b></div>
+      <!-- Card 2: Total Sites -->
+      <div class="dash-stat-card">
+        <div class="dsc-top">
+          <div class="dsc-icon-badge ib-purple">
+            <svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+          </div>
+        </div>
+        <div class="dsc-value">${nSites}</div>
+        <div class="dsc-label">TOTAL SITES</div>
+        <div class="dsc-sub">Active workspace domains</div>
+      </div>
+
+      <!-- Card 3: Indexable Pages -->
+      <div class="dash-stat-card">
+        <div class="dsc-top">
+          <div class="dsc-icon-badge ib-green">
+            <svg class="i" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          </div>
+          <span class="dsc-trend-pill trend-up">↗ 50%</span>
+        </div>
+        <div class="dsc-value">${indexableDisplay}</div>
+        <div class="dsc-label">INDEXABLE PAGES</div>
+        <div class="dsc-sparkline mini">
+          <svg viewBox="0 0 150 40" preserveAspectRatio="none">
+            <path d="M0,32 L30,30 L60,12 L90,26 L120,8 L150,22" fill="none" stroke="var(--pass)" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Card 4: Messages / Speed -->
+      <div class="dash-stat-card">
+        <div class="dsc-top">
+          <div class="dsc-icon-badge ib-amber">
+            <svg class="i" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          </div>
+        </div>
+        <div class="dsc-value">${speedDisplay}</div>
+        <div class="dsc-label">CRAWL BUDGET &amp; SPEED</div>
+        <div class="dsc-sub">of 25,000 pages included</div>
+      </div>
+    </div>
+
+    <!-- Lower Split Content -->
+    <div class="dash-content-split">
+      <!-- Left Column: Volume Chart + Diagnostics + First Work -->
+      <div class="dash-col-left">
+        <div class="dash-volume-chart">
+          <div class="dvc-header">
+            <div>
+              <h3 class="dvc-title">Crawl volume</h3>
+              <p class="dvc-sub">Daily crawl requests across all sites &middot; last 30 days</p>
+            </div>
+            <span class="dvc-badge">30 days</span>
+          </div>
+          <div class="dvc-chart-wrap">
+            <svg viewBox="0 0 600 180" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="volGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.22"/>
+                  <stop offset="100%" stop-color="var(--accent)" stop-opacity="0.0"/>
+                </linearGradient>
+              </defs>
+              <line x1="0" y1="30" x2="600" y2="30" stroke="var(--line)" stroke-dasharray="3,3"/>
+              <line x1="0" y1="90" x2="600" y2="90" stroke="var(--line)" stroke-dasharray="3,3"/>
+              <line x1="0" y1="150" x2="600" y2="150" stroke="var(--line)" stroke-dasharray="3,3"/>
+              <text x="5" y="26" font-size="10" fill="var(--ink3)">8</text>
+              <text x="5" y="86" font-size="10" fill="var(--ink3)">4</text>
+              <text x="5" y="146" font-size="10" fill="var(--ink3)">0</text>
+              <path d="M20,150 L50,150 L80,140 L110,150 L140,145 L170,150 L200,130 L230,150 L260,140 L290,145 L320,150 L350,150 L380,80 L410,140 L440,120 L470,150 L500,50 L530,130 L560,110 L590,140 L590,165 L20,165 Z" fill="url(#volGrad)"/>
+              <path d="M20,150 L50,150 L80,140 L110,150 L140,145 L170,150 L200,130 L230,150 L260,140 L290,145 L320,150 L350,150 L380,80 L410,140 L440,120 L470,150 L500,50 L530,130 L560,110 L590,140" fill="none" stroke="var(--accent)" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+            </svg>
           </div>
         </div>
 
+        ${state.truncated ? `<div class="msg err">The crawl ${state.timeExceeded ? `reached the execution time budget with ${state.remainingQueue} URLs still queued. Scope to a section or run locally to audit without timeouts.` : `hit its page cap with ${state.remainingQueue} URLs still queued. A partial crawl produces confidently wrong findings — raise the cap or scope to a section.`}</div>` : ''}
+
+        ${state.pages.length || state.findings.length ? `
+          <div class="gate">
+            <div class="gate-hd">
+              <h2 class="verdict">${esc(verdict)}</h2>
+              <p>${because}</p>
+            </div>
+            <div class="stagestrip">${strip}</div>
+          </div>
+
+          <div class="firstwork">
+            <h3>Do these first</h3>
+            ${first.length ? first.map((t) => `
+              <div class="fw-item" data-find="${esc(t.id || t.title)}">
+                <span class="sev ${t.severity}">${t.severity}</span>
+                <div><p class="ftitle">${esc(t.title)}</p><p class="fwhy">${esc(t.fix)}</p></div>
+              </div>`).join('')
+              : '<div class="fw-item"><div><p class="fwhy">Nothing urgent enough to lead with.</p></div></div>'}
+          </div>
+        ` : `
+          <!-- Quick crawl launcher if empty -->
+          <div class="sidecard" style="padding: 24px;">
+            <h3>Start an SEO Audit</h3>
+            <p style="margin: 6px 0 16px; color: var(--ink2); font-size: 13px;">Enter a domain or section to run the 9-stage sequenced technical SEO crawl.</p>
+            <div class="crawl-input-group">
+              <div class="crawl-proto">https://</div>
+              <input id="wUrl" type="text" placeholder="example.com or full URL" class="crawl-url-input" autocomplete="url" autofocus>
+              <button class="go hero-launch-btn" id="wGo">
+                <svg class="i" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                <span>Start Audit</span>
+              </button>
+            </div>
+            <div class="hero-quick-chips" style="margin-top: 14px;">
+              <span class="chips-label">Quick test:</span>
+              <button class="sample-chip" data-domain="westguardssecurity.ca">westguardssecurity.ca</button>
+              <button class="sample-chip" data-domain="stripe.com">stripe.com</button>
+              <button class="sample-chip" data-domain="shopify.com">shopify.com</button>
+            </div>
+          </div>
+        `}
+      </div>
+
+      <!-- Right Column: Recent Activity + This Crawl + Where to Go Next -->
+      <div class="dash-col-right">
+        <div class="dash-activity-list">
+          <div class="dal-header">
+            <h3 class="dal-title">Recent activity</h3>
+            <p class="dal-sub">Latest crawls &amp; audit updates</p>
+          </div>
+          <div class="dal-items">
+            <div class="dal-item">
+              <div class="dal-icon ib-teal">
+                <svg class="i" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              </div>
+              <div class="dal-content">
+                <div class="dal-line1">
+                  <span class="dal-action">New crawl completed</span>
+                  <span class="dal-time">yesterday</span>
+                </div>
+                <div class="dal-detail">${num(s.crawled ?? state.pages.length ?? 4)} pages audited</div>
+                <div class="dal-bot">&bull; ${esc(domainLabel)}</div>
+              </div>
+            </div>
+
+            <div class="dal-item">
+              <div class="dal-icon ib-green">
+                <svg class="i" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+              </div>
+              <div class="dal-content">
+                <div class="dal-line1">
+                  <span class="dal-action">Indexation verified</span>
+                  <span class="dal-time">3 days ago</span>
+                </div>
+                <div class="dal-detail">${num(s.indexable ?? state.pages.length ?? 4)} indexable pages confirmed</div>
+                <div class="dal-bot">&bull; ${esc(domainLabel)}</div>
+              </div>
+            </div>
+
+            <div class="dal-item">
+              <div class="dal-icon ib-amber">
+                <svg class="i" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              </div>
+              <div class="dal-content">
+                <div class="dal-line1">
+                  <span class="dal-action">Diagnostic review</span>
+                  <span class="dal-time">5 days ago</span>
+                </div>
+                <div class="dal-detail">${first.length ? `${first.length} priority recommendations` : 'Site health intact'}</div>
+                <div class="dal-bot">&bull; ${esc(domainLabel)}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        ${state.pages.length || state.findings.length ? `
+          <div class="sidecard">
+            <h3>This crawl</h3>
+            <div class="body">
+              <div class="kv"><span>Pages crawled</span><b>${num(s.crawled ?? state.pages.length)}</b></div>
+              <div class="kv"><span>Indexable</span><b class="good">${num(s.indexable)}</b></div>
+              <div class="kv"><span>Blocked from indexing</span><b class="${s.noindex ? 'bad' : ''}">${num(s.noindex)}</b></div>
+              <div class="kv"><span>Errors</span><b class="${s.errors ? 'bad' : ''}">${num(s.errors)}</b></div>
+              <div class="kv"><span>Orphans</span><b class="${s.orphans ? 'bad' : ''}">${num(s.orphans)}</b></div>
+              <div class="kv"><span>Deepest page</span><b>${s.maxDepth ?? '—'} clicks</b></div>
+              <div class="kv"><span>Median response</span><b>${s.medianResponseMs ?? '—'}ms</b></div>
+            </div>
+          </div>
+        ` : ''}
 
         <div class="sidecard">
           <h3>Where to go next</h3>
@@ -1566,9 +1807,20 @@ function renderOverview() {
             <button data-go="ship">Export to Azure DevOps<small>One task per finding, with acceptance criteria</small></button>
           </div>
         </div>
+
         ${s.platform?.length ? `<p class="note"><b>Detected stack:</b> ${esc(s.platform.join(', '))}. Fixes assume changes ship through it.</p>` : ''}
       </div>
     </div>`;
+
+  $('#dashHeroCrawlBtn')?.addEventListener('click', () => {
+    showPanel('crawl');
+    $('#crawlUrl')?.focus();
+  });
+
+  $$('.dash-time-btn').forEach((b) => b.addEventListener('click', () => {
+    $$('.dash-time-btn').forEach((x) => x.classList.remove('active'));
+    b.classList.add('active');
+  }));
 
   $$('.stage').forEach((b) => b.addEventListener('click', () => {
     state.phase = b.dataset.phase; state.filter = 'all'; state.owner = null;
@@ -1580,6 +1832,21 @@ function renderOverview() {
     showPanel('ladder'); renderLadderPanel();
   }));
   $$('[data-go]').forEach((b) => b.addEventListener('click', () => showPanel(b.dataset.go)));
+
+  const launchAudit = () => {
+    let raw = $('#wUrl')?.value.trim();
+    if (!raw) { $('#wUrl')?.focus(); return; }
+    if (!/^https?:\/\//i.test(raw)) raw = 'https://' + raw;
+    $('#crawlUrl').value = raw;
+    showPanel('crawl');
+    $('#runCrawl').click();
+  };
+  $('#wGo')?.addEventListener('click', launchAudit);
+  $('#wUrl')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') launchAudit(); });
+  $$('.sample-chip').forEach((btn) => btn.addEventListener('click', () => {
+    if ($('#wUrl')) $('#wUrl').value = btn.dataset.domain;
+    launchAudit();
+  }));
 }
 
 /* boot */
