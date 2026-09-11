@@ -355,7 +355,7 @@ async function renderBrand() {
   const d = await api('/api/brand');
   suite.brand = d.brand;
   const b = d.brand;
-  $('#nBrand').textContent = `${d.completeness.pct}%`;
+  if ($('#nBrand')) $('#nBrand').textContent = `${d.completeness.pct}%`;
 
   out.innerHTML = `
     <div class="meter">
@@ -396,7 +396,7 @@ async function renderBrand() {
     try {
       const r = await api('/api/brand', { body: { brand: patch } });
       suite.brand = r.brand;
-      $('#nBrand').textContent = `${r.completeness.pct}%`;
+      if ($('#nBrand')) $('#nBrand').textContent = `${r.completeness.pct}%`;
       msg('#inferOut', 'Context saved. Everything the AI writes from now on uses it.', 'ok');
     } catch (err) { msg('#inferOut', err.message, 'err'); }
     finally { busy(btn, false); }
@@ -427,7 +427,7 @@ async function renderProgram() {
     const cap = suite.capacity || 10;
     const d = await api(`/api/program?capacity=${cap}`);
     suite.program = d;
-    $('#nWeeks').textContent = `${d.horizonWeeks}w`;
+    if ($('#nWeeks')) $('#nWeeks').textContent = `${d.horizonWeeks}w`;
     const done = new Set(d.progress.done);
 
     out.innerHTML = `
@@ -661,7 +661,7 @@ async function renderCampaigns() {
   out.innerHTML = '<div class="progress">Loading…</div>';
   const { campaigns } = await api('/api/campaigns');
   suite.campaigns = campaigns;
-  $('#nCamp').textContent = campaigns.length;
+  if ($('#nCamp')) $('#nCamp').textContent = campaigns.length;
 
   out.innerHTML = `
     <div class="form">
@@ -774,8 +774,8 @@ renderOverview = function () {
     const { engines } = await api('/api/serp/engines');
     if ($('#rkEngine')) $('#rkEngine').innerHTML = engines.map((e) => `<option value="${e.key}">${esc(e.label)}</option>`).join('');
   } catch {}
-  try { const d = await api('/api/brand'); $('#nBrand').textContent = `${d.completeness.pct}%`; } catch {}
-  try { const { campaigns } = await api('/api/campaigns'); $('#nCamp').textContent = campaigns.length; } catch {}
+  try { const d = await api('/api/brand'); if ($('#nBrand')) $('#nBrand').textContent = `${d.completeness.pct}%`; } catch {}
+  try { const { campaigns } = await api('/api/campaigns'); if ($('#nCamp')) $('#nCamp').textContent = campaigns.length; } catch {}
   if (state.pages?.length) { renderInsights().catch(() => {}); renderTrendBlock().catch(() => {}); }
 })();
 
@@ -828,8 +828,10 @@ async function renderSecurity() {
   out.innerHTML = '<div class="progress">Grading response headers…</div>';
   try {
     const d = await api('/api/security');
-    $('#nSec').textContent = d.grade;
-    $('#nSec').className = `ni-n ${'ABC'.includes(d.grade) ? '' : 'hot'}`;
+    if ($('#nSec')) {
+      $('#nSec').textContent = d.grade;
+      $('#nSec').className = `ni-n ${'ABC'.includes(d.grade) ? '' : 'hot'}`;
+    }
 
     out.innerHTML = `
       <div class="statrow">
@@ -976,7 +978,7 @@ async function renderMonitors() {
   out.innerHTML = '<div class="progress">Loading…</div>';
   try {
     const d = await api('/api/monitors');
-    $('#nMon').textContent = d.monitors.length;
+    if ($('#nMon')) $('#nMon').textContent = d.monitors.length;
 
     out.innerHTML = `
       ${d.scheduling
@@ -1082,7 +1084,7 @@ function renderDiff(d) {
 }
 
 (async () => {
-  try { const d = await api('/api/monitors'); $('#nMon').textContent = d.monitors.length; } catch {}
+  try { const d = await api('/api/monitors'); if ($('#nMon')) $('#nMon').textContent = d.monitors.length; } catch {}
 })();
 
 /* ══════════════════════════ intent match ══════════════════════════ */
@@ -1177,7 +1179,7 @@ async function renderSetup() {
     renderAuthSettings();
     const d = await api('/api/settings');
     const entries = Object.entries(d.fields);
-    $('#nKeys').textContent = entries.filter(([, f]) => f.set).length;
+    if ($('#nKeys')) $('#nKeys').textContent = entries.filter(([, f]) => f.set).length;
 
     out.innerHTML = `
       <div id="authBlock"></div>
@@ -1235,7 +1237,7 @@ async function renderSetup() {
           if (host) host.innerHTML = `<div class="msg ${res.ok ? 'ok' : 'err'}">${esc(res.detail)}</div>`;
           if (res.ok) $(`#set_${k}`).value = '';
         }
-        $('#nKeys').textContent = Object.values(r.status).filter((f) => f.set).length;
+        if ($('#nKeys')) $('#nKeys').textContent = Object.values(r.status).filter((f) => f.set).length;
         if (r.saved.length) {
           // Re-probe the things a new key unlocks so the UI reflects reality now.
           renderTrendBlock().catch(() => {});
@@ -1249,7 +1251,7 @@ async function renderSetup() {
 }
 
 (async () => {
-  try { const d = await api('/api/settings'); $('#nKeys').textContent = Object.values(d.fields).filter((f) => f.set).length; } catch {}
+  try { const d = await api('/api/settings'); if ($('#nKeys')) $('#nKeys').textContent = Object.values(d.fields).filter((f) => f.set).length; } catch {}
 })();
 
 /* ══════════════════════════ command palette ══════════════════════════ */
@@ -1302,14 +1304,18 @@ function cmdkRender(q = '') {
 const cmdkMark = () => $$('#cmdkList .cmdk-item').forEach((b, i) => b.setAttribute('aria-selected', String(i === cmdkSel)));
 
 function cmdkOpen() {
-  $('#cmdk').hidden = false;
+  const el = $('#cmdk');
+  if (!el) return;
+  el.hidden = false;
   $('#cmdkInput').value = '';
   cmdkRender('');
   $('#cmdkInput').focus();
 }
-const cmdkClose = () => { $('#cmdk').hidden = true; };
+window.cmdkOpen = cmdkOpen;
+const cmdkClose = () => { if ($('#cmdk')) $('#cmdk').hidden = true; };
 
 $('#cmdkOpen')?.addEventListener('click', cmdkOpen);
+$('#topbarSearch')?.addEventListener('click', cmdkOpen);
 $('#cmdk')?.addEventListener('click', (e) => { if (e.target.id === 'cmdk') cmdkClose(); });
 $('#cmdkInput')?.addEventListener('input', (e) => cmdkRender(e.target.value));
 $('#cmdkInput')?.addEventListener('keydown', (e) => {
@@ -1320,7 +1326,7 @@ $('#cmdkInput')?.addEventListener('keydown', (e) => {
 });
 document.addEventListener('keydown', (e) => {
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); cmdkOpen(); }
-  else if (e.key === 'Escape' && !$('#cmdk').hidden) cmdkClose();
+  else if (e.key === 'Escape' && $('#cmdk') && !$('#cmdk').hidden) cmdkClose();
 });
 
 /* ══════════════════════════ text models ══════════════════════════ */

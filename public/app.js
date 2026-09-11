@@ -265,7 +265,8 @@ function updateLadderCounts() {
     const gateAt = LADDER.findIndex((x) => (byPhase[x.key] || []).some((f) => f.severity === 'Critical' || f.severity === 'High'));
     el.closest('.rung').classList.toggle('blocked', gateAt >= 0 && LADDER.indexOf(r) > gateAt);
   });
-  $('#nPages').textContent = state.pages.length || 0;
+  if ($('#nPages')) $('#nPages').textContent = state.pages.length || 0;
+  if ($('#badgeDiagnosis')) $('#badgeDiagnosis').textContent = String(state.findings.length || 0);
 }
 
 /* ── property switcher ────────────────────────────────────────────────────── */
@@ -290,11 +291,129 @@ if (rsc) {
 const tbs = $('#topbarSearch');
 if (tbs) {
   tbs.addEventListener('click', () => {
-    const cmdk = $('#cmdkOpen');
-    if (cmdk) cmdk.click();
-    else if (window.openCommandPalette) window.openCommandPalette();
+    if (typeof window.cmdkOpen === 'function') window.cmdkOpen();
+    else if (typeof cmdkOpen === 'function') cmdkOpen();
   });
 }
+
+// Wire Documentation button & modal
+const btnDocs = $('#btnRailDocs');
+if (btnDocs) {
+  btnDocs.addEventListener('click', () => {
+    const dlg = $('#docsModal');
+    if (dlg) {
+      if (typeof dlg.showModal === 'function') dlg.showModal();
+      else dlg.hidden = false;
+    }
+  });
+}
+$('#docsModalClose')?.addEventListener('click', () => {
+  const dlg = $('#docsModal');
+  if (dlg) {
+    if (typeof dlg.close === 'function') dlg.close();
+    else dlg.hidden = true;
+  }
+});
+$('#docsModal')?.addEventListener('click', (e) => {
+  if (e.target.id === 'docsModal') {
+    if (typeof e.target.close === 'function') e.target.close();
+    else e.target.hidden = true;
+  }
+});
+$('#btnDocsOpenLanding')?.addEventListener('click', () => {
+  const dlg = $('#docsModal');
+  if (dlg && typeof dlg.close === 'function') dlg.close();
+  if (typeof showLanding === 'function') showLanding();
+});
+
+// Wire Diagnostics button & Status button
+const openDiagnostics = () => {
+  showPanel('health');
+  if (typeof renderHealth2 === 'function') renderHealth2();
+};
+$('#btnRailDiagnostics')?.addEventListener('click', openDiagnostics);
+$('#tbStatusBtn')?.addEventListener('click', openDiagnostics);
+
+// Wire Notifications button & popover
+function renderNotifications() {
+  const list = $('#notifyList');
+  if (!list) return;
+  const badge = $('#tbNotifyBadge');
+  const domain = (state.origin ? state.origin.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '') : 'Workspace');
+  const items = [];
+  
+  if (state.pages && state.pages.length > 0) {
+    items.push({
+      type: state.truncated ? 'warn' : 'pass',
+      title: state.truncated ? `Crawl limit reached for ${esc(domain)}` : `Crawl completed for ${esc(domain)}`,
+      detail: `${num(state.pages.length)} pages audited · ${state.stats?.indexable || 0} indexable`,
+      time: state.crawledAt ? ago(state.crawledAt) : 'recently',
+    });
+  }
+  const crit = state.findings ? state.findings.filter((f) => f.severity === 'Critical') : [];
+  const high = state.findings ? state.findings.filter((f) => f.severity === 'High') : [];
+  if (crit.length > 0) {
+    items.push({
+      type: 'fault',
+      title: `${crit.length} Critical blocker${crit.length > 1 ? 's' : ''} detected`,
+      detail: crit.slice(0, 2).map((f) => f.title).join(', '),
+      time: 'now',
+    });
+  } else if (high.length > 0) {
+    items.push({
+      type: 'warn',
+      title: `${high.length} High severity issue${high.length > 1 ? 's' : ''}`,
+      detail: high.slice(0, 2).map((f) => f.title).join(', '),
+      time: 'now',
+    });
+  }
+  if (!items.length) {
+    items.push({
+      type: 'note',
+      title: 'Ready for live audit',
+      detail: 'No warnings or regressions detected. Start a new crawl anytime.',
+      time: 'system',
+    });
+  }
+  if (badge) {
+    if (window._clearedNotifications || !items.some(i => i.type === 'fault' || i.type === 'warn')) {
+      badge.style.display = 'none';
+    } else {
+      badge.style.display = 'block';
+    }
+  }
+  list.innerHTML = items.map((it) => `
+    <div class="notify-item ${it.type}">
+      <div class="ni-indicator"></div>
+      <div class="ni-content">
+        <div class="ni-title">${it.title}</div>
+        <div class="ni-detail">${it.detail}</div>
+      </div>
+      <div class="ni-time">${it.time}</div>
+    </div>
+  `).join('');
+}
+
+const toggleNotify = (e) => {
+  e?.stopPropagation();
+  const pop = $('#notifyPopover');
+  if (!pop) return;
+  const isHidden = pop.hidden;
+  pop.hidden = !isHidden;
+  if (isHidden) renderNotifications();
+};
+$('#tbNotifyBtn')?.addEventListener('click', toggleNotify);
+$('#btnNotifyClear')?.addEventListener('click', (e) => {
+  e.stopPropagation();
+  window._clearedNotifications = true;
+  if ($('#tbNotifyBadge')) $('#tbNotifyBadge').style.display = 'none';
+  renderNotifications();
+});
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('#notifyPopover') && !e.target.closest('#tbNotifyBtn')) {
+    if ($('#notifyPopover')) $('#notifyPopover').hidden = true;
+  }
+});
 
 document.addEventListener('click', (e) => { if (!e.target.closest('#propWrap') && !e.target.closest('#railScopeCard')) closePropMenu(); });
 
@@ -321,7 +440,7 @@ function setPropLabel(p) {
   }
 
   // Update rail scope card & topbar site badge to match inspiration layout
-  const cleanLabel = p ? p.label.replace(/^https?:\/\//, '').replace(/\/$/, '') : 'All sites';
+  const cleanLabel = p ? p.label.replace(/^https?:\/\//, '').replace(/\/$/, '') : (state.origin ? state.origin.replace(/^https?:\/\//, '').replace(/\/$/, '') : 'SEO Workbench');
   if ($('#railScopeName')) $('#railScopeName').textContent = cleanLabel;
   if ($('#railScopeMeta')) {
     $('#railScopeMeta').textContent = p
@@ -440,6 +559,7 @@ $('#runCrawl').addEventListener('click', async () => {
     updateLadderCounts();
     await loadProperties();
     showPanel('overview');
+    renderNotifications();
     if (data.timeExceeded) {
       const elapsedSec = (data.timeElapsedMs / 1000).toFixed(1);
       msg('#crawlMsg', `⚡ Fast Serverless Crawl: Audited ${data.pages.length} pages in ${elapsedSec}s to prevent timeout. Full scorecard and ladder diagnostics are ready.`, 'ok');
@@ -1552,22 +1672,109 @@ function renderOverview() {
   const todayStr = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }).toUpperCase();
   const hr = new Date().getHours();
   const greeting = hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening';
-  const rawName = state.user?.name || (window.AUTH?.user?.name) || 'Farzand';
-  const firstName = rawName.split(' ')[0] || 'Farzand';
-  const nSites = state.properties?.length || 1;
+  const userObj = state.user || window.AUTH?.user;
+  const rawName = userObj?.name || userObj?.username || '';
+  const firstName = rawName ? rawName.split(' ')[0] : 'Analyst';
   const nPages = s.crawled ?? state.pages.length ?? 0;
   const activeProp = state.properties?.find((p) => p.id === state.activeId);
-  const domainLabel = activeProp ? activeProp.label.replace(/^https?:\/\//, '').replace(/\/$/, '') : (state.origin ? state.origin.replace(/^https?:\/\//, '') : 'Active site');
+  const domainLabel = state.origin
+    ? state.origin.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')
+    : (activeProp ? activeProp.label.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '') : 'SEO Workbench');
+  const nSites = state.properties?.length || (state.origin ? 1 : 0);
+
+  // Synchronize topbar site avatar and name
+  if ($('#tsbAvatar')) $('#tsbAvatar').textContent = domainLabel ? domainLabel[0].toUpperCase() : 'S';
+  if ($('#tbcSection')) $('#tbcSection').textContent = domainLabel;
 
   // Hero subtitle
   const subtext = nPages > 0
-    ? `You have ${nSites} site${nSites === 1 ? '' : 's'} running &middot; ${num(nPages)} pages audited.`
-    : `You have ${nSites} site${nSites === 1 ? '' : 's'} running.`;
+    ? `You have ${nSites} active domain${nSites === 1 ? '' : 's'} &middot; ${num(nPages)} pages audited.`
+    : `Ready for technical SEO crawl &middot; enter a URL below.`;
 
-  // Display metrics matching inspiration hierarchy
-  const pageCountDisplay = num(nPages || (state.pages.length ? state.pages.length : 4));
-  const indexableDisplay = num(s.indexable ?? (state.pages.length ? state.pages.length : 30));
-  const speedDisplay = s.medianResponseMs ? `${s.medianResponseMs}ms` : '369';
+  // Real SVG sparkline path derived from actual page crawl times
+  const pageTimes = (state.pages || []).slice(0, 24).map((p) => p.timeMs || 40);
+  let sparkPath = 'M0,50 L300,50';
+  let sparkFill = 'M0,50 L300,50 L300,70 L0,70 Z';
+  if (pageTimes.length >= 2) {
+    const minT = Math.min(...pageTimes);
+    const maxT = Math.max(...pageTimes);
+    const rng = (maxT - minT) || 1;
+    const pts = pageTimes.map((t, idx) => {
+      const x = Math.round((idx / (pageTimes.length - 1)) * 300);
+      const y = Math.round(55 - ((t - minT) / rng) * 42);
+      return `${x},${y}`;
+    });
+    sparkPath = `M${pts.join(' L')}`;
+    sparkFill = `${sparkPath} L300,70 L0,70 Z`;
+  }
+
+  // Real depth counts for crawl architecture
+  const depthCounts = [0, 0, 0, 0, 0];
+  (state.pages || []).forEach((p) => {
+    const d = Math.min(Math.max(p.depth || 0, 0), 4);
+    depthCounts[d]++;
+  });
+  const maxDepthVal = Math.max(...depthCounts, 1);
+
+  // Real activity entries
+  const recentItems = [];
+  if (nPages > 0) {
+    recentItems.push(`
+      <div class="dash-activity-item">
+        <div class="dai-icon blue">
+          <svg class="i" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        </div>
+        <div class="dai-content">
+          <div class="dai-title">${state.truncated ? 'Partial crawl finished' : 'Full crawl completed'}</div>
+          <div class="dai-meta">${num(nPages)} pages audited &bull; ${esc(domainLabel)}</div>
+          <div class="dai-sub">${s.indexable || 0} indexable &bull; ${s.medianResponseMs || 0}ms median</div>
+        </div>
+        <div class="dai-time">${state.crawledAt ? ago(state.crawledAt) : 'just now'}</div>
+      </div>
+    `);
+    recentItems.push(`
+      <div class="dash-activity-item">
+        <div class="dai-icon green">
+          <svg class="i" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+        </div>
+        <div class="dai-content">
+          <div class="dai-title">Indexability verified</div>
+          <div class="dai-meta">${num(s.indexable || 0)} indexable pages confirmed</div>
+          <div class="dai-sub">${s.noindex ? `${s.noindex} blocked by meta/header` : 'No indexing blockers found'}</div>
+        </div>
+        <div class="dai-time">${state.crawledAt ? ago(state.crawledAt) : 'just now'}</div>
+      </div>
+    `);
+    if (state.findings && state.findings.length > 0) {
+      recentItems.push(`
+        <div class="dash-activity-item">
+          <div class="dai-icon ${first.length && first[0].severity === 'Critical' ? 'rose' : 'amber'}">
+            <svg class="i" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          </div>
+          <div class="dai-content">
+            <div class="dai-title">Diagnostic findings</div>
+            <div class="dai-meta">${state.findings.length} findings across 9 stages</div>
+            <div class="dai-sub">${first.length ? esc(first[0].title) : 'Scorecard clean'}</div>
+          </div>
+          <div class="dai-time">${state.crawledAt ? ago(state.crawledAt) : 'just now'}</div>
+        </div>
+      `);
+    }
+  } else {
+    recentItems.push(`
+      <div class="dash-activity-item">
+        <div class="dai-icon blue">
+          <svg class="i" viewBox="0 0 24 24"><path d="M12 2v20M2 12h20"/></svg>
+        </div>
+        <div class="dai-content">
+          <div class="dai-title">Ready for first audit</div>
+          <div class="dai-meta">Enter your site URL to run the 14-point audit</div>
+          <div class="dai-sub">&bull; SEO Workbench ready</div>
+        </div>
+        <div class="dai-time">now</div>
+      </div>
+    `);
+  }
 
   out.innerHTML = `
     <!-- Top Greeting Hero -->
@@ -1599,10 +1806,10 @@ function renderOverview() {
           <div class="dsc-icon-badge teal">
             <svg class="i" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
           </div>
-          <span class="dsc-pill warn">↘ 78%</span>
+          <span class="dsc-pill ${!nPages ? '' : state.truncated ? 'warn' : 'pass'}">${!nPages ? 'Ready' : state.truncated ? 'Capped' : '100% Crawl'}</span>
         </div>
-        <div class="dsc-val">${pageCountDisplay}</div>
-        <div class="dsc-label">PAGES CRAWLED (7D)</div>
+        <div class="dsc-val">${num(nPages)}</div>
+        <div class="dsc-label">PAGES AUDITED</div>
         <div class="dsc-sparkline-wrap">
           <svg class="dsc-sparkline" viewBox="0 0 300 70" preserveAspectRatio="none">
             <defs>
@@ -1611,8 +1818,8 @@ function renderOverview() {
                 <stop offset="100%" stop-color="var(--teal)" stop-opacity="0.0"/>
               </linearGradient>
             </defs>
-            <path d="M0,50 Q40,10 80,45 T160,50 T240,15 T300,40 L300,70 L0,70 Z" fill="url(#tealGrad)" />
-            <path d="M0,50 Q40,10 80,45 T160,50 T240,15 T300,40" fill="none" stroke="var(--teal)" stroke-width="2.5" stroke-linecap="round"/>
+            <path d="${sparkFill}" fill="url(#tealGrad)" />
+            <path d="${sparkPath}" fill="none" stroke="var(--teal)" stroke-width="2.5" stroke-linecap="round"/>
           </svg>
         </div>
       </div>
@@ -1625,8 +1832,8 @@ function renderOverview() {
           </div>
         </div>
         <div class="dsc-val">${nSites}</div>
-        <div class="dsc-label">TOTAL SITES</div>
-        <div class="dsc-sub">Active workspace domains</div>
+        <div class="dsc-label">PORTFOLIO DOMAINS</div>
+        <div class="dsc-sub">${esc(domainLabel)}</div>
       </div>
 
       <!-- Card 3: Indexable Pages -->
@@ -1635,13 +1842,13 @@ function renderOverview() {
           <div class="dsc-icon-badge green">
             <svg class="i" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
           </div>
-          <span class="dsc-pill pass">↗ 50%</span>
+          <span class="dsc-pill ${nPages > 0 && Math.round(((s.indexable || 0)/nPages)*100) >= 80 ? 'pass' : 'warn'}">${nPages > 0 ? `${Math.round(((s.indexable || 0)/nPages)*100)}%` : '—'}</span>
         </div>
-        <div class="dsc-val">${indexableDisplay}</div>
+        <div class="dsc-val">${num(s.indexable ?? 0)}</div>
         <div class="dsc-label">INDEXABLE PAGES</div>
         <div class="dsc-sparkline-wrap mini">
           <svg class="dsc-sparkline" viewBox="0 0 150 40" preserveAspectRatio="none">
-            <path d="M0,32 L30,30 L60,12 L90,26 L120,8 L150,22" fill="none" stroke="var(--pass)" stroke-width="2" stroke-linecap="round"/>
+            <path d="M0,32 L30,${nPages > 0 && s.indexable ? Math.max(10, 35 - Math.round((s.indexable/nPages)*25)) : 32} L60,${nPages > 0 ? 16 : 32} L90,${nPages > 0 ? 20 : 32} L120,${nPages > 0 ? 10 : 32} L150,${nPages > 0 ? 12 : 32}" fill="none" stroke="var(--pass)" stroke-width="2" stroke-linecap="round"/>
           </svg>
         </div>
       </div>
@@ -1653,9 +1860,9 @@ function renderOverview() {
             <svg class="i" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
           </div>
         </div>
-        <div class="dsc-val">${speedDisplay}</div>
-        <div class="dsc-label">CRAWL BUDGET &amp; SPEED</div>
-        <div class="dsc-sub">of 25,000 pages included</div>
+        <div class="dsc-val">${s.medianResponseMs ? `${s.medianResponseMs}ms` : (nPages > 0 ? 'Fast' : '—')}</div>
+        <div class="dsc-label">RESPONSE LATENCY &amp; SPEED</div>
+        <div class="dsc-sub">${num(s.errors || 0)} errors &middot; ${num(s.noindex || 0)} noindex</div>
       </div>
     </div>
 
@@ -1666,28 +1873,47 @@ function renderOverview() {
         <div class="dash-card">
           <div class="dash-card-hd">
             <div>
-              <h3 class="dash-card-title">Crawl volume</h3>
-              <p class="dash-card-sub">Daily crawl requests across all sites &middot; last 30 days</p>
+              <h3 class="dash-card-title">Crawl architecture &amp; click depth</h3>
+              <p class="dash-card-sub">Page distribution by click distance from homepage &middot; ${esc(domainLabel)}</p>
             </div>
-            <span class="dash-badge-sm">30 days</span>
+            <span class="dash-badge-sm">${nPages > 0 ? `${num(nPages)} pages` : 'Pending'}</span>
           </div>
           <div class="dash-volume-chart">
-            <svg class="dash-area-chart" viewBox="0 0 600 160" preserveAspectRatio="none">
-              <defs>
-                <linearGradient id="volGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.25"/>
-                  <stop offset="100%" stop-color="var(--accent)" stop-opacity="0.0"/>
-                </linearGradient>
-              </defs>
-              <line x1="0" y1="30" x2="600" y2="30" stroke="var(--line-soft)" stroke-dasharray="3,3"/>
-              <line x1="0" y1="80" x2="600" y2="80" stroke="var(--line-soft)" stroke-dasharray="3,3"/>
-              <line x1="0" y1="130" x2="600" y2="130" stroke="var(--line-soft)" stroke-dasharray="3,3"/>
-              <text x="6" y="26" class="dash-chart-axis">8</text>
-              <text x="6" y="76" class="dash-chart-axis">4</text>
-              <text x="6" y="126" class="dash-chart-axis">0</text>
-              <path d="M20,130 L50,130 L80,120 L110,130 L140,125 L170,130 L200,110 L230,130 L260,120 L290,125 L320,130 L350,130 L380,60 L410,120 L440,100 L470,130 L500,30 L530,110 L560,90 L590,120 L590,150 L20,150 Z" fill="url(#volGrad)"/>
-              <path d="M20,130 L50,130 L80,120 L110,130 L140,125 L170,130 L200,110 L230,130 L260,120 L290,125 L320,130 L350,130 L380,60 L410,120 L440,100 L470,130 L500,30 L530,110 L560,90 L590,120" fill="none" stroke="var(--accent)" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
-            </svg>
+            ${nPages > 0 ? `
+              <svg class="dash-area-chart" viewBox="0 0 600 160" preserveAspectRatio="none">
+                <line x1="0" y1="30" x2="600" y2="30" stroke="var(--line-soft)" stroke-dasharray="3,3"/>
+                <line x1="0" y1="80" x2="600" y2="80" stroke="var(--line-soft)" stroke-dasharray="3,3"/>
+                <line x1="0" y1="130" x2="600" y2="130" stroke="var(--line-soft)" stroke-dasharray="3,3"/>
+                <text x="6" y="26" class="dash-chart-axis">${maxDepthVal}</text>
+                <text x="6" y="76" class="dash-chart-axis">${Math.round(maxDepthVal/2)}</text>
+                <text x="6" y="126" class="dash-chart-axis">0</text>
+                ${(() => {
+                  const barW = 76;
+                  const xs = [60, 170, 280, 390, 500];
+                  const labels = ['Depth 0 (Root)', 'Depth 1', 'Depth 2', 'Depth 3', 'Depth 4+'];
+                  return depthCounts.map((cnt, i) => {
+                    const h = Math.round((cnt / maxDepthVal) * 95);
+                    const y = 130 - h;
+                    return `
+                      <rect x="${xs[i] - barW/2}" y="${y}" width="${barW}" height="${h}" rx="4" fill="var(--accent)" fill-opacity="0.82" />
+                      <text x="${xs[i]}" y="${Math.max(20, y - 6)}" text-anchor="middle" class="dash-chart-axis" font-weight="600" fill="var(--ink)">${cnt}</text>
+                      <text x="${xs[i]}" y="148" text-anchor="middle" class="dash-chart-axis" fill="var(--ink2)">${labels[i]}</text>
+                    `;
+                  }).join('');
+                })()}
+              </svg>
+              <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;font-size:11px;font-family:var(--mono);">
+                <span class="pill ok" style="padding:2px 8px;">${num(s.indexable || 0)} 200 OK</span>
+                <span class="pill" style="padding:2px 8px;">${num(s.redirects || 0)} 3xx Redirects</span>
+                <span class="pill ${s.errors ? 'bad' : ''}" style="padding:2px 8px;">${num(s.errors || 0)} Errors</span>
+                <span class="pill ${s.noindex ? 'mid' : ''}" style="padding:2px 8px;">${num(s.noindex || 0)} Noindex</span>
+              </div>
+            ` : `
+              <div style="padding:40px 20px;text-align:center;color:var(--ink2);font-size:13px;">
+                <svg class="i" viewBox="0 0 24 24" style="width:32px;height:32px;margin:0 auto 10px;display:block;opacity:0.6;"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+                No crawl executed yet &middot; enter a domain below to visualize page architecture.
+              </div>
+            `}
           </div>
         </div>
 
@@ -1744,41 +1970,7 @@ function renderOverview() {
             </div>
           </div>
           <div class="dash-activity-list">
-            <div class="dash-activity-item">
-              <div class="dai-icon blue">
-                <svg class="i" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-              </div>
-              <div class="dai-content">
-                <div class="dai-title">New crawl completed</div>
-                <div class="dai-meta">${num(s.crawled ?? state.pages.length ?? 4)} pages audited</div>
-                <div class="dai-sub">&bull; ${esc(domainLabel)}</div>
-              </div>
-              <div class="dai-time">yesterday</div>
-            </div>
-
-            <div class="dash-activity-item">
-              <div class="dai-icon green">
-                <svg class="i" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-              </div>
-              <div class="dai-content">
-                <div class="dai-title">Indexation verified</div>
-                <div class="dai-meta">${num(s.indexable ?? state.pages.length ?? 4)} indexable pages confirmed</div>
-                <div class="dai-sub">&bull; ${esc(domainLabel)}</div>
-              </div>
-              <div class="dai-time">3 days ago</div>
-            </div>
-
-            <div class="dash-activity-item">
-              <div class="dai-icon amber">
-                <svg class="i" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-              </div>
-              <div class="dai-content">
-                <div class="dai-title">Diagnostic review</div>
-                <div class="dai-meta">${first.length ? `${first.length} priority recommendations` : 'Site health intact'}</div>
-                <div class="dai-sub">&bull; ${esc(domainLabel)}</div>
-              </div>
-              <div class="dai-time">5 days ago</div>
-            </div>
+            ${recentItems.join('')}
           </div>
         </div>
 

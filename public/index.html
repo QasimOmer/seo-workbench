@@ -50,6 +50,50 @@
   </div>
 </dialog>
 
+<dialog id="docsModal" class="auth-dialog team-dialog docs-dialog" closedby="any" aria-labelledby="docsDialogTitle">
+  <div class="auth-dialog-card team-dialog-card docs-dialog-card">
+    <div class="auth-dialog-hd">
+      <div class="auth-dialog-title" id="docsDialogTitle">
+        <span class="mark" aria-hidden="true"></span>
+        <b>Documentation &amp; Diagnostic Guide</b>
+      </div>
+      <button class="auth-close-btn" id="docsModalClose" aria-label="Close dialog">&times;</button>
+    </div>
+    <div class="auth-dialog-body docs-dialog-body" id="docsModalBody">
+      <div class="docs-section">
+        <h4 style="margin:0 0 8px;font-size:14px;color:var(--ink);">14-Stage Technical SEO Diagnostic Ladder</h4>
+        <p style="margin:0 0 12px;font-size:12px;line-height:1.6;color:var(--ink2);">SEO Workbench executes audits in strict order of search engine processing priority. Foundational blockers must be resolved first because search engines cannot interpret downstream signals accurately until prerequisites are clear:</p>
+        <ol class="docs-ladder-list" style="padding-left:18px;margin:0 0 14px;font-size:12px;line-height:1.8;color:var(--ink2);">
+          <li><b style="color:var(--ink);">01 DNS &amp; TLS:</b> Resolvability, valid SSL/TLS certificates, non-www &amp; HTTP canonical redirection.</li>
+          <li><b style="color:var(--ink);">02 Robots &amp; Crawlability:</b> Robots.txt directives, disallow blocks on critical assets or money paths.</li>
+          <li><b style="color:var(--ink);">03 Canonicals:</b> Self-referential correctness, cross-domain canonical rules, absence of canonical chains.</li>
+          <li><b style="color:var(--ink);">04 Indexability:</b> Meta robots, X-Robots-Tag, 4xx client errors, 5xx server drops.</li>
+          <li><b style="color:var(--ink);">05 Schema &amp; Structured Data:</b> Valid JSON-LD syntax, required entity properties, rich result eligibility.</li>
+          <li><b style="color:var(--ink);">06 Status &amp; Redirect Hygiene:</b> Elimination of redirect chains, 302 temporary redirects on permalinks.</li>
+          <li><b style="color:var(--ink);">07 Content &amp; Thin Pages:</b> Duplicate content identification, thin bodies (&lt;300 words), semantic structure.</li>
+          <li><b style="color:var(--ink);">08 Heading Architecture:</b> Single unique H1 per page, descriptive title tags, meta description coverage.</li>
+          <li><b style="color:var(--ink);">09 Internal Linking:</b> Discovery of orphan URLs, click depth distribution, PageRank distribution flow.</li>
+          <li><b style="color:var(--ink);">10 Real-User Speed (CrUX):</b> 75th percentile Core Web Vitals (LCP, INP, CLS) from Chrome UX Report.</li>
+        </ol>
+      </div>
+
+      <div class="docs-section" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line-soft);">
+        <h4 style="margin:0 0 6px;font-size:13px;color:var(--ink);">Crawl Settings &amp; Coverage Limits</h4>
+        <p style="margin:0 0 8px;font-size:12px;line-height:1.6;color:var(--ink2);">In serverless deployments, crawls operate with an intelligent time budget (up to 45s) to guarantee fast responses without gateway timeouts:</p>
+        <ul style="padding-left:18px;margin:0;font-size:12px;line-height:1.7;color:var(--ink2);">
+          <li><b style="color:var(--ink);">Capped Crawls:</b> If URLs remain queued, orphan claims are deferred to prevent false positives. Raise the Max Pages limit in Crawl Settings or scope the start URL to a specific section.</li>
+          <li><b style="color:var(--ink);">Robots.txt &amp; Subdomains:</b> Keep "Respect robots.txt" enabled for production auditing. Toggle "Include subdomains" only if regional or multi-tenant subdomains are in scope.</li>
+        </ul>
+      </div>
+
+      <div class="docs-section" style="margin-top:16px;padding-top:12px;border-top:1px solid var(--line-soft);display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:12px;color:var(--ink2);">Want to explore the complete feature tour?</span>
+        <button class="go sm" id="btnDocsOpenLanding" type="button">Full Product Guide &rarr;</button>
+      </div>
+    </div>
+  </div>
+</dialog>
+
 <!-- ═══════════════════════════ LANDING PAGE VIEW ═══════════════════════════ -->
 <div id="landingView" class="landing-view" hidden>
   <header class="landing-nav">
@@ -383,14 +427,14 @@
 
   <div class="railfoot">
     <div class="rail-user-widget" id="railUserWidget" title="Click to manage team &amp; permissions">
-      <div class="ruw-avatar" id="ruwAvatar">FA</div>
+      <div class="ruw-avatar" id="ruwAvatar">SE</div>
       <div class="ruw-info">
-        <span class="ruw-name" id="ruwName">Farzand Ali</span>
-        <span class="user-role-pill role-viewer" id="ruwRole">Viewer</span>
+        <span class="ruw-name" id="ruwName">Workspace User</span>
+        <span class="user-role-pill role-viewer" id="ruwRole">Member</span>
       </div>
       <svg class="i sm" viewBox="0 0 24 24" style="color:var(--ground-dim);margin-left:auto"><path d="m6 9 6 6 6-6"/></svg>
     </div>
-    <div class="rail-version-label">Version 2.4.0</div>
+    <div class="rail-version-label">Version 2.4.2</div>
   </div>
 </aside>
 
@@ -399,9 +443,9 @@
 
   <div class="topbar-left">
     <div class="topbar-site-badge" id="topbarSiteBadge">
-      <span class="tsb-avatar" id="tsbAvatar">G</span>
+      <span class="tsb-avatar" id="tsbAvatar">S</span>
       <div class="topbar-breadcrumbs" id="topbarBreadcrumbs">
-        <span class="tbc-section" id="tbcSection">Ged Lawyers</span>
+        <span class="tbc-section" id="tbcSection">SEO Workbench</span>
         <span class="tbc-sep">/</span>
         <span class="tbc-page" id="tbcPage">Dashboard</span>
       </div>
@@ -425,13 +469,25 @@
 
   <div class="tbactions">
     <div class="themeswitch" id="themeSwitch"></div>
-    <button class="tb-icon-btn" id="tbStatusBtn" title="System Live Status">
+    <button class="tb-icon-btn" id="tbStatusBtn" title="System Live Status &amp; Diagnostics">
       <span class="tb-live-dot"></span>
     </button>
-    <button class="tb-icon-btn" id="tbNotifyBtn" title="Recent activity &amp; alerts">
-      <svg class="i" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
-      <span class="tb-notify-badge"></span>
-    </button>
+    <div class="notify-wrap" style="position:relative;">
+      <button class="tb-icon-btn" id="tbNotifyBtn" title="Recent activity &amp; alerts">
+        <svg class="i" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+        <span class="tb-notify-badge" id="tbNotifyBadge"></span>
+      </button>
+      <div class="notify-popover" id="notifyPopover" hidden>
+        <div class="notify-pop-hd">
+          <div class="notify-pop-title">
+            <svg class="i sm" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+            <span>Activity &amp; Alerts</span>
+          </div>
+          <button class="notify-clear-btn" id="btnNotifyClear">Mark read</button>
+        </div>
+        <div class="notify-list" id="notifyList"></div>
+      </div>
+    </div>
     <div id="whoami"></div>
     <button class="go xl dash-top-btn" id="runCrawlTop">
       <svg class="i sm" viewBox="0 0 24 24" style="margin-right:2px"><path d="M12 5v14M5 12h14"/></svg>
