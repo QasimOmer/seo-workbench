@@ -115,7 +115,14 @@ const cookieAttrs = (req, maxAgeSec) => {
 /* Role-Based Access Control Middleware */
 const requirePermission = (perm) => (req, res, next) => {
   if (!req.authEnabled) return next();
-  if (!req.user) return res.status(401).json({ ok: false, error: 'Authentication required.' });
+  if (!req.user) {
+    // Allow public / guest access for core SEO auditing and reports
+    if (perm === 'audit:run' || perm === 'audit:read' || perm === 'content:read') {
+      req.user = { id: 'guest', username: 'guest', role: 'viewer', roleLabel: 'Guest' };
+      return next();
+    }
+    return res.status(401).json({ ok: false, error: 'Authentication required.' });
+  }
   if (auth.hasPermission(req.user, perm)) return next();
   return res.status(403).json({
     ok: false,
@@ -136,7 +143,7 @@ const requireRole = (...roles) => (req, res, next) => {
 
 app.use('/api', wrap(async (req, res, next) => {
   const st = await auth.status();
-  const effectiveAuth = IS_PROD || st.enabled;
+  const effectiveAuth = Boolean(st.enabled || process.env.FORCE_AUTH === 'true');
   req.authEnabled = effectiveAuth;
 
   if (OPEN_PATHS.has(req.path)) return next();
@@ -144,6 +151,11 @@ app.use('/api', wrap(async (req, res, next) => {
 
   const user = await auth.resolve(getAuthToken(req));
   if (!user) {
+    // Allow unauthenticated guests to run audits and read progress
+    if (req.path === '/crawl' || req.path === '/progress') {
+      req.user = { id: 'guest', username: 'guest', role: 'viewer', roleLabel: 'Guest' };
+      return next();
+    }
     return res.status(401).json({
       ok: false,
       error: 'Not signed in.',
@@ -172,7 +184,7 @@ app.use('/api', wrap(async (req, res, next) => {
 
 app.get('/api/auth/status', wrap(async (req, res) => {
   const st = await auth.status();
-  const effectiveAuth = IS_PROD || st.enabled;
+  const effectiveAuth = Boolean(st.enabled || process.env.FORCE_AUTH === 'true');
   const user = effectiveAuth ? await auth.resolve(getAuthToken(req)) : null;
   ok(res, {
     ...st,
@@ -337,14 +349,15 @@ const state = { crawl: null, audit: null, progress: null, propertyId: null, clus
 /* ─────────────────────────────────── crawl ────────────────────────────────── */
 
 app.post('/api/crawl', requirePermission('audit:run'), wrap(async (req, res) => {
-  const { url, maxPages = 500, ua = 'googlebot', includeSubdomains = false, respectRobots = true, concurrency = 5, moneyUrls = [], timeLimitMs } = req.body;
+  const { url, maxPages = 1000, ua = 'googlebot', includeSubdomains = false, respectRobots = true, concurrency = 5, moneyUrls = [], timeLimitMs } = req.body;
   if (!url) return fail(res, 'A start URL is required.');
   state.progress = { done: 0, max: maxPages, url: '', phase: 'crawling' };
 
-  // On Vercel serverless functions, enforce an 8500ms safety budget to prevent 504 Gateway Timeouts
-  const budget = timeLimitMs ? Math.min(Number(timeLimitMs), 55000) : (process.env.VERCEL ? 8500 : 55000);
+  // Serverless safety budget: on Vercel with maxDuration: 60, allocate 45s so the crawl completes thoroughly without 504 Gateway Timeouts
+  const budget = timeLimitMs ? Math.min(Number(timeLimitMs), 52000) : (process.env.VERCEL ? 45000 : 90000);
+  const crawlConcurrency = Number(concurrency) || (process.env.VERCEL ? 12 : 8);
 
-  const result = await crawl(url, { maxPages, ua, includeSubdomains, respectRobots, concurrency, timeLimitMs: budget },
+  const result = await crawl(url, { maxPages, ua, includeSubdomains, respectRobots, concurrency: crawlConcurrency, timeLimitMs: budget },
     (p) => { state.progress = { ...p, phase: 'crawling' }; });
 
   state.crawl = result;
@@ -364,6 +377,10 @@ app.post('/api/crawl', requirePermission('audit:run'), wrap(async (req, res) => 
     stats: state.audit.stats, counts: state.audit.counts,
     findings: state.audit.findings, topThree: state.audit.topThree,
     pages: result.pages.map(slimPage),
+    truncated: result.truncated,
+    timeExceeded: result.timeExceeded || false,
+    timeElapsedMs: result.timeElapsedMs || 0,
+    remainingQueue: result.remainingQueue || 0,
   });
 
   ok(res, {
@@ -393,14 +410,22 @@ app.get('/api/crawl/current', (req, res) => {
     origin: state.crawl.origin, crawledAt: state.crawl.crawledAt,
     // Truncation changes how every count should be read, so it must survive a reload.
     truncated: state.crawl.truncated, remainingQueue: state.crawl.remainingQueue,
+    timeExceeded: state.crawl.timeExceeded || false, timeElapsedMs: state.crawl.timeElapsedMs || 0,
   });
 });
 
-app.get('/api/page', (req, res) => {
-  const p = state.crawl?.pages.find((x) => x.url === req.query.url);
+app.get('/api/page', wrap(async (req, res) => {
+  let p = state.crawl?.pages.find((x) => x.url === req.query.url);
+  if (!p) {
+    const list = await props.listProperties();
+    if (list.activeId) {
+      const cached = await props.loadCrawl(list.activeId);
+      p = cached?.pages?.find((x) => x.url === req.query.url);
+    }
+  }
   if (!p) return fail(res, 'URL not found in the current crawl.', 404);
   ok(res, { page: { ...p, shingles: undefined, bodyText: (p.bodyText || '').slice(0, 4000) } });
-});
+}));
 
 app.post('/api/page/review', wrap(async (req, res) => {
   const { url, withPsi = false, withInspection = false, siteUrl } = req.body;
@@ -958,7 +983,12 @@ app.post('/api/properties/activate', wrap(async (req, res) => {
   if (!rec) return fail(res, 'That property is not in the registry.', 404);
   const cached = await props.loadCrawl(rec.id);
   if (cached) {
-    state.crawl = { origin: cached.origin, crawledAt: cached.crawledAt, pages: cached.pages, external: [], blocked: [], robots: { sitemaps: [] }, robotsRaw: '', sitemapSources: [] };
+    state.crawl = {
+      origin: cached.origin, crawledAt: cached.crawledAt, pages: cached.pages,
+      truncated: cached.truncated || false, timeExceeded: cached.timeExceeded || false,
+      timeElapsedMs: cached.timeElapsedMs || 0, remainingQueue: cached.remainingQueue || 0,
+      external: [], blocked: [], robots: { sitemaps: [] }, robotsRaw: '', sitemapSources: [],
+    };
     state.audit = { stats: cached.stats, counts: cached.counts, findings: cached.findings, topThree: cached.topThree };
     state.propertyId = rec.id;
   }
@@ -1247,11 +1277,28 @@ function getGscRedirectUri(req) {
   return `${proto}://${host}/api/gsc/callback`;
 }
 
-app.get('/api/gsc/status', (req, res) => ok(res, {
-  configured: gsc.isConfigured(),
-  connected: gsc.isConnected(),
-  authUrl: gsc.isConnected() ? null : gsc.authUrl(getGscRedirectUri(req)),
-}));
+const ensureGscTokens = (req) => {
+  if (!gsc.isConnected()) {
+    const raw = readCookie(req, 'sw_gsc_tokens');
+    if (raw) {
+      try {
+        const parsed = JSON.parse(decodeURIComponent(raw));
+        if (parsed && (parsed.access_token || parsed.refresh_token)) {
+          gsc.setTokens(parsed);
+        }
+      } catch {}
+    }
+  }
+};
+
+app.get('/api/gsc/status', (req, res) => {
+  ensureGscTokens(req);
+  ok(res, {
+    configured: gsc.isConfigured(),
+    connected: gsc.isConnected(),
+    authUrl: gsc.isConnected() ? null : gsc.authUrl(getGscRedirectUri(req)),
+  });
+});
 
 app.get('/api/gsc/callback', async (req, res) => {
   if (req.query.error) {
@@ -1276,6 +1323,10 @@ app.get('/api/gsc/callback', async (req, res) => {
   const redirectUri = getGscRedirectUri(req);
   try {
     await gsc.exchangeCode(req.query.code, redirectUri);
+    const tokens = gsc.getTokens();
+    const tokenCookie = encodeURIComponent(JSON.stringify(tokens));
+    const secure = req.protocol === 'https' || req.headers['x-forwarded-proto'] === 'https' || Boolean(process.env.VERCEL);
+    res.setHeader('Set-Cookie', `sw_gsc_tokens=${tokenCookie}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${365 * 86400}${secure ? '; Secure' : ''}`);
     return res.send(`<!doctype html><meta charset="utf-8">
       <body style="font:16px/1.5 system-ui,-apple-system,sans-serif;padding:40px;background:#0d1117;color:#c9d1d9;text-align:center">
       <div style="max-width:480px;margin:40px auto;padding:32px;background:#161b22;border:1px solid #30363d;border-radius:8px">
@@ -1283,7 +1334,18 @@ app.get('/api/gsc/callback', async (req, res) => {
         <p style="color:#8b949e;margin-bottom:20px">Your Google Search Console connection is active. Closing window...</p>
         <a href="/" style="display:inline-block;padding:8px 16px;background:#238636;color:#fff;text-decoration:none;border-radius:6px;font-weight:600">Return to Workbench</a>
       </div>
-      <script>setTimeout(()=>{ try { window.opener?.location?.reload?.(); window.close(); } catch(e){} }, 1200);</script>
+      <script>
+        try {
+          if (window.opener && !window.opener.closed) {
+            window.opener.postMessage({ type: 'gsc_connected' }, '*');
+            setTimeout(() => { window.close(); }, 800);
+          } else {
+            window.location.href = '/#console';
+          }
+        } catch(e) {
+          window.location.href = '/#console';
+        }
+      </script>
       </body>`);
   } catch (err) {
     console.error('GSC exchange code failed:', err);
@@ -1299,33 +1361,55 @@ app.get('/api/gsc/callback', async (req, res) => {
   }
 });
 
-app.post('/api/gsc/disconnect', wrap(async (req, res) => { await gsc.disconnect(); ok(res, {}); }));
-app.get('/api/gsc/sites', wrap(async (req, res) => ok(res, { sites: await gsc.listSites() })));
+app.post('/api/gsc/disconnect', wrap(async (req, res) => {
+  await gsc.disconnect();
+  res.setHeader('Set-Cookie', 'sw_gsc_tokens=; Path=/; Max-Age=0');
+  ok(res, {});
+}));
+
+app.get('/api/gsc/sites', wrap(async (req, res) => {
+  ensureGscTokens(req);
+  ok(res, { sites: await gsc.listSites() });
+}));
 
 app.post('/api/gsc/query', wrap(async (req, res) => {
+  ensureGscTokens(req);
   const { siteUrl, startDate, endDate, dimensions = ['query'], rowLimit = 1000 } = req.body;
   ok(res, { rows: await gsc.query(siteUrl, { startDate, endDate, dimensions, rowLimit }) });
 }));
 
-app.post('/api/gsc/cannibalisation', wrap(async (req, res) =>
-  ok(res, { rows: await gsc.findCannibalisation(req.body.siteUrl, req.body) })));
+app.post('/api/gsc/cannibalisation', wrap(async (req, res) => {
+  ensureGscTokens(req);
+  ok(res, { rows: await gsc.findCannibalisation(req.body.siteUrl, req.body) });
+}));
 
-app.post('/api/gsc/striking', wrap(async (req, res) =>
-  ok(res, { rows: await gsc.strikingDistance(req.body.siteUrl, req.body) })));
+app.post('/api/gsc/striking', wrap(async (req, res) => {
+  ensureGscTokens(req);
+  ok(res, { rows: await gsc.strikingDistance(req.body.siteUrl, req.body) });
+}));
 
-app.post('/api/gsc/ctr-gaps', wrap(async (req, res) =>
-  ok(res, { rows: await gsc.ctrGaps(req.body.siteUrl, req.body) })));
+app.post('/api/gsc/ctr-gaps', wrap(async (req, res) => {
+  ensureGscTokens(req);
+  ok(res, { rows: await gsc.ctrGaps(req.body.siteUrl, req.body) });
+}));
 
-app.post('/api/gsc/triage', wrap(async (req, res) =>
-  ok(res, { triage: await gsc.trafficTriage(req.body.siteUrl, req.body) })));
+app.post('/api/gsc/triage', wrap(async (req, res) => {
+  ensureGscTokens(req);
+  ok(res, { triage: await gsc.trafficTriage(req.body.siteUrl, req.body) });
+}));
 
-app.post('/api/gsc/deltas', wrap(async (req, res) =>
-  ok(res, { rows: await gsc.pageDeltas(req.body.siteUrl, req.body) })));
+app.post('/api/gsc/deltas', wrap(async (req, res) => {
+  ensureGscTokens(req);
+  ok(res, { rows: await gsc.pageDeltas(req.body.siteUrl, req.body) });
+}));
 
-app.post('/api/gsc/inspect', wrap(async (req, res) =>
-  ok(res, { result: await gsc.inspect(req.body.siteUrl, req.body.url) })));
+app.post('/api/gsc/inspect', wrap(async (req, res) => {
+  ensureGscTokens(req);
+  ok(res, { result: await gsc.inspect(req.body.siteUrl, req.body.url) });
+}));
 
 app.post('/api/gsc/inspect-batch', wrap(async (req, res) => {
+  ensureGscTokens(req);
   const { siteUrl, urls = [] } = req.body;
   const out = [];
   for (const u of urls.slice(0, 30)) {
@@ -1336,14 +1420,20 @@ app.post('/api/gsc/inspect-batch', wrap(async (req, res) => {
   ok(res, { results: out });
 }));
 
-app.get('/api/gsc/sitemaps', wrap(async (req, res) =>
-  ok(res, { sitemaps: await gsc.listSitemaps(req.query.siteUrl) })));
+app.get('/api/gsc/sitemaps', wrap(async (req, res) => {
+  ensureGscTokens(req);
+  ok(res, { sitemaps: await gsc.listSitemaps(req.query.siteUrl) });
+}));
 
-app.post('/api/gsc/sitemap-submit', wrap(async (req, res) =>
-  ok(res, await gsc.submitSitemap(req.body.siteUrl, req.body.feedpath))));
+app.post('/api/gsc/sitemap-submit', wrap(async (req, res) => {
+  ensureGscTokens(req);
+  ok(res, await gsc.submitSitemap(req.body.siteUrl, req.body.feedpath));
+}));
 
-app.post('/api/gsc/clusters', wrap(async (req, res) =>
-  ok(res, { clusters: await gsc.clusterByLandingPage(req.body.siteUrl, req.body) })));
+app.post('/api/gsc/clusters', wrap(async (req, res) => {
+  ensureGscTokens(req);
+  ok(res, { clusters: await gsc.clusterByLandingPage(req.body.siteUrl, req.body) });
+}));
 
 /* ──────────────────────────── demand research ─────────────────────────────── */
 

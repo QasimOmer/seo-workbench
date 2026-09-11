@@ -313,80 +313,138 @@
 
 <aside class="rail" id="rail">
   <div class="brand">
-    <span class="mark" aria-hidden="true"></span>
-    <span class="bname">SEO Workbench</span>
+    <div class="brand-logo-wrap">
+      <span class="mark" aria-hidden="true"></span>
+    </div>
+    <div class="brand-info">
+      <span class="bname">SEO Workbench</span>
+      <span class="bsub">DASHBOARD</span>
+    </div>
+    <span class="rail-tier-pill">PRO</span>
   </div>
 
-  <nav class="nav" aria-label="Sections">
-    <button class="navitem" data-panel="overview" data-purpose="Where this site stands, and what to fix first" aria-current="true"><span class="ni-label">Where it stands</span></button>
+  <!-- Scope Selector Card ("All bots" in inspiration image) -->
+  <div class="rail-scope-card" id="railScopeCard" title="Switch active site / property">
+    <div class="rsc-icon">
+      <svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+    </div>
+    <div class="rsc-info">
+      <span class="rsc-name" id="railScopeName">All sites</span>
+      <span class="rsc-meta" id="railScopeMeta">Active workspace</span>
+    </div>
+    <div class="rsc-chevron">
+      <svg class="i sm" viewBox="0 0 24 24"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg>
+    </div>
+  </div>
 
-    <p class="navgroup" title="What is wrong, in the order it must be fixed">Diagnose &mdash; in order</p>
-    <div id="ladderNav" class="ladder-nav"></div>
+  <nav class="nav" aria-label="Main Sections">
+    <div class="rail-group-label">WORKSPACE</div>
+    <button class="navitem" data-section="diagnosis" data-purpose="Technical audit overview, 14-point ladder, crawl &amp; security" aria-current="true">
+      <svg class="i" viewBox="0 0 24 24"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+      <span class="ni-label">Dashboard</span>
+      <span class="ni-badge" id="badgeDiagnosis">0</span>
+    </button>
+    <button class="navitem" data-section="performance" data-purpose="Core Web Vitals, CrUX speed metrics, server logs &amp; budget">
+      <svg class="i" viewBox="0 0 24 24"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+      <span class="ni-label">Analytics &amp; Speed</span>
+      <span class="ni-badge" id="badgePerformance">⚡</span>
+    </button>
+    <button class="navitem" data-section="analysis" data-purpose="Search Console, pages &amp; intent, competitors &amp; AI visibility">
+      <svg class="i" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+      <span class="ni-label">Search Console</span>
+      <span class="ni-badge" id="badgeAnalysis">GSC</span>
+    </button>
+    <button class="navitem" data-section="plan" data-purpose="Plan a new site, keyword clusters, roadmap &amp; campaigns">
+      <svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>
+      <span class="ni-label">Plan &amp; Clusters</span>
+      <span class="ni-badge" id="badgePlan">7</span>
+    </button>
+    <button class="navitem" data-section="build" data-purpose="Code &amp; schema generators, social media studio, ship &amp; DevOps">
+      <svg class="i" viewBox="0 0 24 24"><path d="m18 16 4-4-4-4"/><path d="m6 8-4 4 4 4"/><path d="m14.5 4-5 16"/></svg>
+      <span class="ni-label">Build Studio</span>
+      <span class="ni-badge" id="badgeBuild">Dev</span>
+    </button>
+    <button class="navitem" data-section="settings" data-purpose="API keys, Firebase connection, team RBAC &amp; automated monitors">
+      <svg class="i" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+      <span class="ni-label">Settings</span>
+      <span class="ni-badge" id="badgeSettings">⚙️</span>
+    </button>
 
-    <p class="navgroup" title="Look closer at one thing">Look closer</p>
-    <button class="navitem" data-panel="pages" data-purpose="One page at a time: review it, and check its intent against the live SERP"><span class="ni-label">Pages &amp; intent</span><span class="ni-n" id="nPages">0</span></button>
-    <button class="navitem" data-panel="console" data-purpose="What Google actually recorded: clicks, impressions, position"><span class="ni-label">Search Console</span><span class="ni-dot" id="dotGsc"></span></button>
-    <button class="navitem" data-panel="speed" data-purpose="Core Web Vitals from real users, and lab numbers for debugging"><span class="ni-label">Speed</span><span class="ni-dot" id="dotPsi"></span></button>
-    <button class="navitem" data-panel="security" data-purpose="Security headers, graded. A compromised site loses rankings"><span class="ni-label">Security</span><span class="ni-n" id="nSec">&mdash;</span></button>
-    <button class="navitem" data-panel="logs" data-purpose="Your server log: what Googlebot actually requested, and what it wasted"><span class="ni-label">Server logs</span></button>
-    <button class="navitem" data-panel="competitors" data-purpose="Crawl a competitor and compare how the sites are built"><span class="ni-label">Competitors</span><span class="ni-n" id="nComp2">0</span></button>
-    <button class="navitem" data-panel="clarity" data-purpose="Rage clicks, dead clicks and script errors from real sessions"><span class="ni-label">Behaviour</span><span class="ni-dot" id="dotClarity"></span></button>
-    <button class="navitem" data-panel="aivis" data-purpose="Do the AI models name you, cite you, and what share of voice do you hold"><span class="ni-label">AI visibility</span><span class="ni-n" id="nAivis">—</span></button>
-    <button class="navitem" data-panel="rank" data-purpose="Whether you appear at all for the queries you care about"><span class="ni-label">Visibility</span></button>
-
-    <p class="navgroup" title="Decide what should exist">Plan</p>
-    <button class="navitem" data-panel="newsite" data-purpose="For a site that does not exist yet: architecture, URLs, technical spec"><span class="ni-label">Plan a new site</span><span class="ni-n" id="nPhase">7</span></button>
-    <button class="navitem" data-panel="demand" data-purpose="What people search for, and which clusters you could win"><span class="ni-label">Keywords</span></button>
-    <button class="navitem" data-panel="program" data-purpose="Findings turned into dated weeks at your real capacity"><span class="ni-label">Work plan</span><span class="ni-n" id="nWeeks">&mdash;</span></button>
-
-    <p class="navgroup" title="Produce the things that fix it">Make</p>
-    <button class="navitem" data-panel="build" data-purpose="Titles, schema, redirects, robots, briefs &mdash; ready to paste"><span class="ni-label">Build</span></button>
-    <button class="navitem" data-panel="social" data-purpose="Platform-sized posts with copy and artwork"><span class="ni-label">Social posts</span></button>
-    <button class="navitem" data-panel="campaigns" data-purpose="Tie changes to a number, with a baseline recorded first"><span class="ni-label">Campaigns</span><span class="ni-n" id="nCamp">0</span></button>
-
-    <p class="navgroup" title="Get it out, and watch it">Ship &amp; watch</p>
-    <button class="navitem" data-panel="ship" data-purpose="Pre-launch checks, snapshot diffs, and exports including Azure DevOps"><span class="ni-label">Ship</span></button>
-    <button class="navitem" data-panel="monitors" data-purpose="Re-crawl on a schedule and report only what changed"><span class="ni-label">Monitoring</span><span class="ni-n" id="nMon">0</span></button>
-
-    <p class="navgroup" title="Team members, roles, and system integrations">Workspace</p>
-    <button class="navitem" data-panel="team" data-purpose="Manage team members, roles, and granular permissions"><span class="ni-label">Team &amp; Access</span><span class="ni-n" id="nTeam">1</span></button>
-    <button class="navitem" data-panel="settings" data-purpose="API keys, Firebase connection, and platform integrations"><span class="ni-label">Settings</span><span class="ni-n" id="nSettings">0</span></button>
+    <div class="rail-group-label">SUPPORT &amp; TOOLS</div>
+    <button class="navitem sm" id="btnRailDocs" type="button">
+      <svg class="i sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <span class="ni-label">Documentation</span>
+    </button>
+    <button class="navitem sm" id="btnRailDiagnostics" type="button">
+      <svg class="i sm" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+      <span class="ni-label">Diagnostics</span>
+    </button>
   </nav>
 
   <div class="railfoot">
-    <button class="navitem sm" data-panel="crawl" data-purpose="Start URL, page cap, JavaScript rendering"><span class="ni-label">Crawl settings</span></button>
-    <button class="navitem sm" data-panel="brand" data-purpose="Voice, services, audience &mdash; read by everything that writes"><span class="ni-label">Brand context</span><span class="ni-n" id="nBrand">0%</span></button>
-    <button class="navitem sm" data-panel="setup" data-purpose="API keys and text models"><span class="ni-label">Setup &amp; keys</span><span class="ni-n" id="nKeys">0</span></button>
-    <button class="navitem sm" data-panel="people" data-purpose="Who owns which finding, and how loaded each person is"><span class="ni-label">People</span><span class="ni-n" id="nPeople">0</span></button>
-    <button class="navitem sm" data-panel="health" data-purpose="What is reachable from this machine right now"><span class="ni-label">System check</span><span class="ni-dot" id="dotHealth"></span></button>
+    <div class="rail-user-widget" id="railUserWidget" title="Click to manage team &amp; permissions">
+      <div class="ruw-avatar" id="ruwAvatar">FA</div>
+      <div class="ruw-info">
+        <span class="ruw-name" id="ruwName">Farzand Ali</span>
+        <span class="user-role-pill role-viewer" id="ruwRole">Viewer</span>
+      </div>
+      <svg class="i sm" viewBox="0 0 24 24" style="color:var(--ground-dim);margin-left:auto"><path d="m6 9 6 6 6-6"/></svg>
+    </div>
+    <div class="rail-version-label">Version 2.4.0</div>
   </div>
 </aside>
 
 <header class="topbar">
   <button class="railtoggle" id="railToggle" aria-label="Show navigation" aria-expanded="false"><span></span><span></span><span></span></button>
 
-  <div class="prop" id="propWrap">
-    <button class="propbtn" id="propBtn" aria-haspopup="listbox" aria-expanded="false">
-      <span class="propname" id="propName">No property yet</span>
-      <span class="propmeta" id="propMeta">Crawl a site to begin</span>
-    </button>
-    <div class="propmenu" id="propMenu" role="listbox" hidden></div>
+  <div class="topbar-left">
+    <div class="topbar-site-badge" id="topbarSiteBadge">
+      <span class="tsb-avatar" id="tsbAvatar">G</span>
+      <div class="topbar-breadcrumbs" id="topbarBreadcrumbs">
+        <span class="tbc-section" id="tbcSection">Ged Lawyers</span>
+        <span class="tbc-sep">/</span>
+        <span class="tbc-page" id="tbcPage">Dashboard</span>
+      </div>
+    </div>
+    <div class="prop" id="propWrap">
+      <button class="propbtn" id="propBtn" aria-haspopup="listbox" aria-expanded="false" style="display:none">
+        <span class="propname" id="propName">No property yet</span>
+        <span class="propmeta" id="propMeta">Crawl a site to begin</span>
+      </button>
+      <div class="propmenu" id="propMenu" role="listbox" hidden></div>
+    </div>
+  </div>
+
+  <div class="topbar-center">
+    <div class="topbar-search" id="topbarSearch" title="Search audits, pages, settings (Ctrl K)">
+      <svg class="i sm" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <span>Search bots, pages, settings...</span>
+      <kbd>Ctrl K</kbd>
+    </div>
   </div>
 
   <div class="tbactions">
-    <button class="auth-trigger-btn" id="btnViewLanding" title="View product overview and features" style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;font-size:12px">
-      <svg class="i sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
-      <span>Product Info</span>
-    </button>
-    <span class="freshness" id="freshness"></span>
-    <button class="kbd" id="cmdkOpen" title="Jump to any section">Ctrl K</button>
     <div class="themeswitch" id="themeSwitch"></div>
+    <button class="tb-icon-btn" id="tbStatusBtn" title="System Live Status">
+      <span class="tb-live-dot"></span>
+    </button>
+    <button class="tb-icon-btn" id="tbNotifyBtn" title="Recent activity &amp; alerts">
+      <svg class="i" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+      <span class="tb-notify-badge"></span>
+    </button>
     <div id="whoami"></div>
-    <button class="go" id="runCrawlTop">Run crawl</button>
+    <button class="go xl dash-top-btn" id="runCrawlTop">
+      <svg class="i sm" viewBox="0 0 24 24" style="margin-right:2px"><path d="M12 5v14M5 12h14"/></svg>
+      <span>New crawl</span>
+    </button>
   </div>
 </header>
 
 <main class="work" id="work">
+
+<nav class="work-subnav" id="workSubnav" aria-label="Section Tools">
+  <div class="subnav-tabs" id="subnavTabs" role="tablist"></div>
+</nav>
 
 <section class="panel" id="p-overview">
   <div id="overviewOut"></div>
@@ -398,7 +456,7 @@
 
   <div class="form">
     <div class="field grow"><label for="crawlUrl">Start URL</label><input id="crawlUrl" type="url" placeholder="https://example.com/" autocomplete="url"></div>
-    <div class="field"><label for="maxPages">Max pages</label><input id="maxPages" type="number" value="500" min="1" max="25000" style="width:110px"></div>
+    <div class="field"><label for="maxPages">Max pages</label><input id="maxPages" type="number" value="1000" min="1" max="25000" style="width:110px"></div>
     <div class="field"><label for="ua">User agent</label><select id="ua"><option value="googlebot">Googlebot smartphone</option><option value="desktop">Desktop Chrome</option><option value="workbench">SEO Workbench</option></select></div>
     <div class="field"><label>&nbsp;</label><button class="go" id="runCrawl">Run crawl</button></div>
   </div>
@@ -414,6 +472,11 @@
 </section>
 
 <section class="panel" id="p-ladder" hidden>
+  <h2 class="sec">14-Point Diagnostic Ladder</h2>
+  <p class="lede">The diagnostic order is the priority ladder: prerequisite technical layers must be resolved before higher-level content or speed optimizations can take effect.</p>
+  <div class="ladder-nav-container">
+    <div id="ladderNav" class="ladder-nav"></div>
+  </div>
   <div id="ladderOut"></div>
 </section>
 
