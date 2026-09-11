@@ -406,6 +406,7 @@ app.get('/api/crawl/current', (req, res) => {
     origin: state.crawl.origin, crawledAt: state.crawl.crawledAt,
     // Truncation changes how every count should be read, so it must survive a reload.
     truncated: state.crawl.truncated, remainingQueue: state.crawl.remainingQueue,
+    timeExceeded: state.crawl.timeExceeded || false, timeElapsedMs: state.crawl.timeElapsedMs || 0,
   });
 });
 
@@ -1267,11 +1268,28 @@ function getGscRedirectUri(req) {
   return `${proto}://${host}/api/gsc/callback`;
 }
 
-app.get('/api/gsc/status', (req, res) => ok(res, {
-  configured: gsc.isConfigured(),
-  connected: gsc.isConnected(),
-  authUrl: gsc.isConnected() ? null : gsc.authUrl(getGscRedirectUri(req)),
-}));
+const ensureGscTokens = (req) => {
+  if (!gsc.isConnected()) {
+    const raw = readCookie(req, 'sw_gsc_tokens');
+    if (raw) {
+      try {
+        const parsed = JSON.parse(decodeURIComponent(raw));
+        if (parsed && (parsed.access_token || parsed.refresh_token)) {
+          gsc.setTokens(parsed);
+        }
+      } catch {}
+    }
+  }
+};
+
+app.get('/api/gsc/status', (req, res) => {
+  ensureGscTokens(req);
+  ok(res, {
+    configured: gsc.isConfigured(),
+    connected: gsc.isConnected(),
+    authUrl: gsc.isConnected() ? null : gsc.authUrl(getGscRedirectUri(req)),
+  });
+});
 
 app.get('/api/gsc/callback', async (req, res) => {
   if (req.query.error) {
@@ -1296,6 +1314,10 @@ app.get('/api/gsc/callback', async (req, res) => {
   const redirectUri = getGscRedirectUri(req);
   try {
     await gsc.exchangeCode(req.query.code, redirectUri);
+    const tokens = gsc.getTokens();
+    const tokenCookie = encodeURIComponent(JSON.stringify(tokens));
+    const secure = req.protocol === 'https' || req.headers['x-forwarded-proto'] === 'https' || Boolean(process.env.VERCEL);
+    res.setHeader('Set-Cookie', `sw_gsc_tokens=${tokenCookie}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${365 * 86400}${secure ? '; Secure' : ''}`);
     return res.send(`<!doctype html><meta charset="utf-8">
       <body style="font:16px/1.5 system-ui,-apple-system,sans-serif;padding:40px;background:#0d1117;color:#c9d1d9;text-align:center">
       <div style="max-width:480px;margin:40px auto;padding:32px;background:#161b22;border:1px solid #30363d;border-radius:8px">
@@ -1303,7 +1325,18 @@ app.get('/api/gsc/callback', async (req, res) => {
         <p style="color:#8b949e;margin-bottom:20px">Your Google Search Console connection is active. Closing window...</p>
         <a href="/" style="display:inline-block;padding:8px 16px;background:#238636;color:#fff;text-decoration:none;border-radius:6px;font-weight:600">Return to Workbench</a>
       </div>
-      <script>setTimeout(()=>{ try { window.opener?.location?.reload?.(); window.close(); } catch(e){} }, 1200);</script>
+      <script>
+        try {
+          if (window.opener && !window.opener.closed) {
+            window.opener.postMessage({ type: 'gsc_connected' }, '*');
+            setTimeout(() => { window.close(); }, 800);
+          } else {
+            window.location.href = '/#console';
+          }
+        } catch(e) {
+          window.location.href = '/#console';
+        }
+      </script>
       </body>`);
   } catch (err) {
     console.error('GSC exchange code failed:', err);
@@ -1319,33 +1352,55 @@ app.get('/api/gsc/callback', async (req, res) => {
   }
 });
 
-app.post('/api/gsc/disconnect', wrap(async (req, res) => { await gsc.disconnect(); ok(res, {}); }));
-app.get('/api/gsc/sites', wrap(async (req, res) => ok(res, { sites: await gsc.listSites() })));
+app.post('/api/gsc/disconnect', wrap(async (req, res) => {
+  await gsc.disconnect();
+  res.setHeader('Set-Cookie', 'sw_gsc_tokens=; Path=/; Max-Age=0');
+  ok(res, {});
+}));
+
+app.get('/api/gsc/sites', wrap(async (req, res) => {
+  ensureGscTokens(req);
+  ok(res, { sites: await gsc.listSites() });
+}));
 
 app.post('/api/gsc/query', wrap(async (req, res) => {
+  ensureGscTokens(req);
   const { siteUrl, startDate, endDate, dimensions = ['query'], rowLimit = 1000 } = req.body;
   ok(res, { rows: await gsc.query(siteUrl, { startDate, endDate, dimensions, rowLimit }) });
 }));
 
-app.post('/api/gsc/cannibalisation', wrap(async (req, res) =>
-  ok(res, { rows: await gsc.findCannibalisation(req.body.siteUrl, req.body) })));
+app.post('/api/gsc/cannibalisation', wrap(async (req, res) => {
+  ensureGscTokens(req);
+  ok(res, { rows: await gsc.findCannibalisation(req.body.siteUrl, req.body) });
+}));
 
-app.post('/api/gsc/striking', wrap(async (req, res) =>
-  ok(res, { rows: await gsc.strikingDistance(req.body.siteUrl, req.body) })));
+app.post('/api/gsc/striking', wrap(async (req, res) => {
+  ensureGscTokens(req);
+  ok(res, { rows: await gsc.strikingDistance(req.body.siteUrl, req.body) });
+}));
 
-app.post('/api/gsc/ctr-gaps', wrap(async (req, res) =>
-  ok(res, { rows: await gsc.ctrGaps(req.body.siteUrl, req.body) })));
+app.post('/api/gsc/ctr-gaps', wrap(async (req, res) => {
+  ensureGscTokens(req);
+  ok(res, { rows: await gsc.ctrGaps(req.body.siteUrl, req.body) });
+}));
 
-app.post('/api/gsc/triage', wrap(async (req, res) =>
-  ok(res, { triage: await gsc.trafficTriage(req.body.siteUrl, req.body) })));
+app.post('/api/gsc/triage', wrap(async (req, res) => {
+  ensureGscTokens(req);
+  ok(res, { triage: await gsc.trafficTriage(req.body.siteUrl, req.body) });
+}));
 
-app.post('/api/gsc/deltas', wrap(async (req, res) =>
-  ok(res, { rows: await gsc.pageDeltas(req.body.siteUrl, req.body) })));
+app.post('/api/gsc/deltas', wrap(async (req, res) => {
+  ensureGscTokens(req);
+  ok(res, { rows: await gsc.pageDeltas(req.body.siteUrl, req.body) });
+}));
 
-app.post('/api/gsc/inspect', wrap(async (req, res) =>
-  ok(res, { result: await gsc.inspect(req.body.siteUrl, req.body.url) })));
+app.post('/api/gsc/inspect', wrap(async (req, res) => {
+  ensureGscTokens(req);
+  ok(res, { result: await gsc.inspect(req.body.siteUrl, req.body.url) });
+}));
 
 app.post('/api/gsc/inspect-batch', wrap(async (req, res) => {
+  ensureGscTokens(req);
   const { siteUrl, urls = [] } = req.body;
   const out = [];
   for (const u of urls.slice(0, 30)) {
@@ -1356,14 +1411,20 @@ app.post('/api/gsc/inspect-batch', wrap(async (req, res) => {
   ok(res, { results: out });
 }));
 
-app.get('/api/gsc/sitemaps', wrap(async (req, res) =>
-  ok(res, { sitemaps: await gsc.listSitemaps(req.query.siteUrl) })));
+app.get('/api/gsc/sitemaps', wrap(async (req, res) => {
+  ensureGscTokens(req);
+  ok(res, { sitemaps: await gsc.listSitemaps(req.query.siteUrl) });
+}));
 
-app.post('/api/gsc/sitemap-submit', wrap(async (req, res) =>
-  ok(res, await gsc.submitSitemap(req.body.siteUrl, req.body.feedpath))));
+app.post('/api/gsc/sitemap-submit', wrap(async (req, res) => {
+  ensureGscTokens(req);
+  ok(res, await gsc.submitSitemap(req.body.siteUrl, req.body.feedpath));
+}));
 
-app.post('/api/gsc/clusters', wrap(async (req, res) =>
-  ok(res, { clusters: await gsc.clusterByLandingPage(req.body.siteUrl, req.body) })));
+app.post('/api/gsc/clusters', wrap(async (req, res) => {
+  ensureGscTokens(req);
+  ok(res, { clusters: await gsc.clusterByLandingPage(req.body.siteUrl, req.body) });
+}));
 
 /* ──────────────────────────── demand research ─────────────────────────────── */
 

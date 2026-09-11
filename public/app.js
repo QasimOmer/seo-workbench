@@ -397,6 +397,7 @@ $('#runCrawl').addEventListener('click', async () => {
     state.origin = new URL(url).origin;
     state.crawledAt = new Date().toISOString();
     state.truncated = data.truncated; state.remainingQueue = data.remainingQueue;
+    state.timeExceeded = data.timeExceeded; state.timeElapsedMs = data.timeElapsedMs;
     state.phase = null;
     renderPages();
     updateLadderCounts();
@@ -726,11 +727,17 @@ async function gscStatus() {
     $('#gscConnect').addEventListener('click', () => {
       const win = window.open(s.authUrl, '_blank', 'width=520,height=680');
       if (!win) {
-        msg('#gscAuth', 'Popup was blocked by your browser. Please allow popups for localhost to sign in.', 'err');
+        msg('#gscAuth', 'Popup was blocked by your browser. Please allow popups to sign in.', 'err');
       }
       const t = setInterval(async () => {
         const st = await api('/api/gsc/status');
-        if (st.connected) { clearInterval(t); gscStatus(); }
+        if (st.connected) {
+          clearInterval(t);
+          await gscStatus();
+          showPanel('console');
+          if (typeof toast === 'function') toast('Search Console connected! Loading performance data…', 'ok');
+          document.querySelector('[data-gsc="performance"]')?.click();
+        }
       }, 1500);
     });
     return;
@@ -761,12 +768,28 @@ async function gscStatus() {
     const match = sites.find((s2) => state.origin && s2.siteUrl.includes(state.origin.replace(/^https?:\/\//, '')));
     state.gscSite = match ? match.siteUrl : (sites[0]?.siteUrl || '');
     if (match) $('#gscSite').value = match.siteUrl;
-    $('#gscSite').addEventListener('change', (e) => { state.gscSite = e.target.value; });
+    $('#gscSite').onchange = (e) => {
+      state.gscSite = e.target.value;
+      const activeBtn = document.querySelector('[data-gsc][aria-pressed="true"]') || document.querySelector('[data-gsc="performance"]');
+      activeBtn?.click();
+    };
+    if (!$('#gscOut').innerHTML || $('#gscOut').innerHTML.includes('Querying Search Console')) {
+      document.querySelector('[data-gsc="performance"]')?.click();
+    }
   } catch (e) {
     $('#gscSite').innerHTML = '<option value="">Error loading properties</option>';
     $('#gscOut').innerHTML = `<div class="msg err">Search Console API error: ${esc(e.message)}. If your access token was revoked or expired, click Disconnect above and reconnect.</div>`;
   }
 }
+
+window.addEventListener('message', async (e) => {
+  if (e.data?.type === 'gsc_connected') {
+    await gscStatus();
+    showPanel('console');
+    if (typeof toast === 'function') toast('Search Console connected! Loading performance data…', 'ok');
+    document.querySelector('[data-gsc="performance"]')?.click();
+  }
+});
 
 function gscRange() {
   const days = Number($('#gscDays').value);
@@ -783,8 +806,12 @@ $$('[data-gsc]').forEach((b) => b.addEventListener('click', async () => {
   try {
     if (kind === 'performance') {
       const { rows } = await api('/api/gsc/query', { body: { siteUrl, ...r, dimensions: ['query'], rowLimit: 300 } });
-      $('#gscOut').innerHTML = table(['Query', 'Clicks', 'Impr.', 'CTR', 'Pos.'], rows.map((x) => [
-        x.query, num(x.clicks), num(x.impressions), `${(x.ctr * 100).toFixed(1)}%`, x.position.toFixed(1)]), [1, 2, 3, 4]);
+      if (!rows || !rows.length) {
+        $('#gscOut').innerHTML = '<div class="empty">No search performance data returned for this property in the selected window.</div>';
+      } else {
+        $('#gscOut').innerHTML = table(['Query', 'Clicks', 'Impr.', 'CTR', 'Pos.'], rows.map((x) => [
+          x.query, num(x.clicks), num(x.impressions), `${(x.ctr * 100).toFixed(1)}%`, x.position.toFixed(1)]), [1, 2, 3, 4]);
+      }
     }
     if (kind === 'cannibalisation') {
       const { rows } = await api('/api/gsc/cannibalisation', { body: { siteUrl, ...r } });
@@ -1493,7 +1520,7 @@ function renderOverview() {
   const first = (state.topThree || []).slice(0, 3);
 
   out.innerHTML = `
-    ${state.truncated ? `<div class="msg err">The crawl hit its page cap with ${state.remainingQueue} URLs still queued. A partial crawl produces confidently wrong findings — raise the cap or scope to a section.</div>` : ''}
+    ${state.truncated ? `<div class="msg err">The crawl ${state.timeExceeded ? `reached the execution time budget with ${state.remainingQueue} URLs still queued. Scope to a section or run locally to audit without timeouts.` : `hit its page cap with ${state.remainingQueue} URLs still queued. A partial crawl produces confidently wrong findings — raise the cap or scope to a section.`}</div>` : ''}
 
     <div class="gate">
       <div class="gate-hd">
@@ -1564,6 +1591,7 @@ function renderOverview() {
     state.stats = d.stats; state.counts = d.counts; state.topThree = d.topThree;
     state.crawledAt = d.crawledAt;
     state.truncated = d.truncated; state.remainingQueue = d.remainingQueue;
+    state.timeExceeded = d.timeExceeded; state.timeElapsedMs = d.timeElapsedMs;
     renderPages();
   } catch { /* nothing loaded yet — the overview handles the empty case */ }
   updateLadderCounts();
